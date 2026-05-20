@@ -19,6 +19,7 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
   const [csvText, setCsvText] = useState("");
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [workflows, setWorkflows] = useState<Array<{ id: string; name: string; status: string }>>([]);
   const [enrollWorkflowId, setEnrollWorkflowId] = useState("");
@@ -72,11 +73,36 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
     }
   }
 
-  const filtered = contacts.filter(
+  const categories = [{ name: "All", count: contacts.length }];
+  const categoryMap = contacts.reduce((map, contact) => {
+    const tags = contact.tags?.split(",").map((t) => t.trim()).filter(Boolean) ?? [];
+    if (tags.length === 0) {
+      map.set("Uncategorized", (map.get("Uncategorized") ?? 0) + 1);
+    }
+    for (const tag of tags) {
+      map.set(tag, (map.get(tag) ?? 0) + 1);
+    }
+    return map;
+  }, new Map<string, number>());
+
+  for (const [name, count] of categoryMap.entries()) {
+    categories.push({ name, count });
+  }
+
+  const categoryFiltered = selectedCategory === "All"
+    ? contacts
+    : selectedCategory === "Uncategorized"
+    ? contacts.filter((c) => !c.tags?.trim())
+    : contacts.filter((c) =>
+        c.tags?.split(",").map((t) => t.trim().toLowerCase()).includes(selectedCategory.toLowerCase())
+      );
+
+  const filtered = categoryFiltered.filter(
     (c) =>
       c.email.toLowerCase().includes(search.toLowerCase()) ||
       (c.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (c.company ?? "").toLowerCase().includes(search.toLowerCase())
+      (c.company ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (c.tags ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   async function handleAdd() {
@@ -334,6 +360,23 @@ export function ContactsClient({ initialContacts }: { initialContacts: Contact[]
       </div>
 
       {/* Search */}
+      {categories.length > 1 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {categories.map((category) => (
+            <button
+              key={category.name}
+              onClick={() => setSelectedCategory(category.name)}
+              className={`rounded-full px-4 py-2 text-xs font-medium transition-all ${
+                selectedCategory === category.name
+                  ? "bg-indigo-600 text-white"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              {category.name} ({category.count})
+            </button>
+          ))}
+        </div>
+      )}
       {contacts.length > 0 && (
         <div className="relative">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
