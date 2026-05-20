@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { sendEmail } from "@/lib/brevo";
+import { sendEmail } from "@/lib/smtp";
 import { workflowQueue } from "@/lib/workflowQueue";
 import { rewriteLinksForTracking } from "@/lib/rewriteLinks";
 
@@ -75,6 +75,10 @@ export async function POST(
         htmlContent: htmlWithTracking,
         fromName: resolvedFromName,
         replyTo: resolvedReplyTo,
+        headers: {
+          "X-ReachX-Recipient-Id": recipient.id,
+          "X-ReachX-Campaign-Id": campaign.id,
+        },
       });
 
       await prisma.emailEvent.create({

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { Worker } from "bullmq";
 import { connection } from "../lib/queue";
-import { sendEmail } from "../lib/brevo";
+import { sendEmail } from "../lib/smtp";
 import { prisma } from "../lib/prisma";
 import { rewriteLinksForTracking } from "../lib/rewriteLinks";
 
@@ -57,6 +57,10 @@ export const emailWorker = new Worker(
             htmlContent: rewriteLinksForTracking(campaign.content, recipient.id, campaignId, appUrl) + trackingPixel + unsubFooter,
             fromName: resolvedFromName,
             replyTo: resolvedReplyTo,
+            headers: {
+              "X-ReachX-Recipient-Id": recipient.id,
+              "X-ReachX-Campaign-Id": campaignId,
+            },
           });
           await prisma.emailEvent.create({
             data: { eventType: "SENT", campaignId, recipientId: recipient.id },
@@ -77,7 +81,15 @@ export const emailWorker = new Worker(
 
     // ── Individual email send ────────────────────────────────────────────
     const { recipientId, campaignId, to, subject, htmlContent } = job.data;
-    await sendEmail({ to, subject, htmlContent });
+    await sendEmail({
+      to,
+      subject,
+      htmlContent,
+      headers: {
+        "X-ReachX-Recipient-Id": recipientId,
+        "X-ReachX-Campaign-Id": campaignId,
+      },
+    });
     await prisma.emailEvent.create({
       data: { eventType: "SENT", campaignId, recipientId },
     });

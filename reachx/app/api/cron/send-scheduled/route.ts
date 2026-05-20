@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/brevo";
+import { sendEmail } from "@/lib/smtp";
 import { rewriteLinksForTracking } from "@/lib/rewriteLinks";
+import { checkBounceMailbox } from "@/lib/bounce";
 
 // Called by Railway cron every minute
 // Secure with a shared secret so only Railway can trigger it
@@ -13,6 +14,9 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   console.log(`[cron] Checking for scheduled campaigns at ${now.toISOString()}`);
+
+  const bounceCount = await checkBounceMailbox();
+  console.log(`[cron] Processed ${bounceCount} bounce message(s)`);
 
   // Find all SCHEDULED campaigns whose scheduledAt has passed
   const dueCampaigns = await prisma.campaign.findMany({
@@ -82,6 +86,10 @@ export async function POST(req: NextRequest) {
           htmlContent: rewriteLinksForTracking(campaign.content, recipient.id, campaign.id, appUrl) + trackingPixel + unsubFooter,
           fromName: resolvedFromName,
           replyTo: resolvedReplyTo,
+          headers: {
+            "X-ReachX-Recipient-Id": recipient.id,
+            "X-ReachX-Campaign-Id": campaign.id,
+          },
         });
 
         await prisma.emailEvent.create({
