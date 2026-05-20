@@ -219,8 +219,8 @@ export default function NewCampaignPage() {
                   {segments.length === 0 ? (
                     <div className="text-center py-6 space-y-2">
                       <p className="text-slate-500 text-sm">No segments yet.</p>
-                      <Link href="/dashboard/contacts?tab=segments" className="text-indigo-600 text-sm hover:underline">
-                        Create a segment in Contacts →
+                      <Link href="/dashboard/segments" className="text-indigo-600 text-sm hover:underline">
+                        Create a segment in Segments →
                       </Link>
                     </div>
                   ) : (
@@ -235,7 +235,11 @@ export default function NewCampaignPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium text-slate-800">{seg.name}</div>
-                              <div className="text-xs text-slate-400 capitalize">{seg.filterType}{seg.filterValue ? `: ${seg.filterValue}` : ""}</div>
+                              <div className="text-xs text-slate-400 capitalize">
+                                {seg.filterType === "manual"
+                                  ? "Uploaded list"
+                                  : `${seg.filterType}${seg.filterValue ? `: ${seg.filterValue}` : ""}`}
+                              </div>
                             </div>
                           </button>
                         ))}

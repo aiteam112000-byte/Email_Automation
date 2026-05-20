@@ -32,6 +32,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
       where.createdAt = { gte: since };
     }
+  } else if (segment.filterType === "manual" && segment.filterValue) {
+    try {
+      const emailList = JSON.parse(segment.filterValue) as string[];
+      if (Array.isArray(emailList) && emailList.length > 0) {
+        const normalized = emailList.map((email) => String(email).toLowerCase().trim()).filter(Boolean);
+        const contacts = await prisma.contact.findMany({
+          where: { userId: session.user.id, unsubscribed: false, email: { in: normalized } },
+          select: { id: true, email: true, name: true, tags: true },
+          orderBy: { createdAt: "desc" },
+        });
+        return NextResponse.json({ contacts, count: contacts.length });
+      }
+    } catch (error) {
+      // fall back to empty result
+    }
   }
 
   const contacts = await prisma.contact.findMany({
