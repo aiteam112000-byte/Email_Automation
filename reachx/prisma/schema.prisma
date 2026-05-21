@@ -24,6 +24,7 @@ model User {
   contacts      Contact[]
   workflows     Workflow[]
   segments      Segment[]
+  pixelAssets   PixelAsset[]
 }
 
 model Account {
@@ -165,6 +166,17 @@ enum EventType {
   BOUNCED
   SPAM
   UNSUBSCRIBED
+}
+
+model PixelAsset {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  type        String   // "pixel" | "image"
+  imageUrl    String?  // for type=image, external or data URL
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
 }
 
 // ─── Workflow Automation ───────────────────────────────────────────────────────

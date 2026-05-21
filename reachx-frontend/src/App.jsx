@@ -19,6 +19,7 @@ import WorkflowDetailPage from "./pages/dashboard/WorkflowDetailPage";
 import AnalyticsPage from "./pages/dashboard/AnalyticsPage";
 import ValidateDashboardPage from "./pages/dashboard/ValidateDashboardPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
+import PixelFolderPage from "./pages/dashboard/PixelFolderPage";
 
 function PrivateRoute({ children }) {
   return isAuthenticated() ? children : <Navigate to="/login" replace />;
@@ -45,6 +46,7 @@ export default function App() {
       <Route path="/dashboard/analytics" element={<PrivateRoute><AnalyticsPage /></PrivateRoute>} />
       <Route path="/dashboard/validate" element={<PrivateRoute><ValidateDashboardPage /></PrivateRoute>} />
       <Route path="/dashboard/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
+      <Route path="/dashboard/pixels" element={<PrivateRoute><PixelFolderPage /></PrivateRoute>} />
     </Routes>
   );
 }

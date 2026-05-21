@@ -29,6 +29,8 @@ export default function CampaignDetailPage() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [scheduling, setScheduling] = useState(false);
+  const [showPixelPicker, setShowPixelPicker] = useState(false);
+  const [pixels, setPixels] = useState([]);
 
   async function load() {
     const res = await api.get(`/api/campaigns/${id}`);
@@ -38,7 +40,23 @@ export default function CampaignDetailPage() {
     setLoading(false);
   }
 
+  async function loadPixels() {
+    const res = await api.get("/api/pixels");
+    const data = await res.json();
+    setPixels(data);
+  }
+
   useEffect(() => { load(); }, [id]);
+
+  function insertPixelSnippet(asset) {
+    const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+    const snippet = asset.type === "pixel"
+      ? `<img src="${BASE}/api/track?pid=${asset.id}&type=open" width="1" height="1" style="display:none" alt="" />`
+      : `<img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%" />`;
+    setEditForm((f) => ({ ...f, content: f.content + "\n" + snippet }));
+    setShowPixelPicker(false);
+    setShowEdit(true);
+  }
 
   async function handleSend() {
     setSending(true);
@@ -205,6 +223,7 @@ export default function CampaignDetailPage() {
             <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Email content</label><textarea value={editForm.content} onChange={(e) => setEditForm({ ...editForm, content: e.target.value })} rows={10} className={`${inputCls} font-mono resize-none`} /></div>
             <div className="flex gap-2 pt-1">
               <button onClick={handleEdit} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-semibold transition-all">Save changes</button>
+              <button onClick={() => { setShowPixelPicker(true); loadPixels(); }} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Insert Pixel/Image</button>
               <button onClick={() => setShowEdit(false)} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Cancel</button>
             </div>
           </div>
@@ -266,6 +285,37 @@ export default function CampaignDetailPage() {
               </button>
               <button onClick={() => setShowSchedule(false)} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pixel picker modal */}
+      {showPixelPicker && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900">Insert from Pixel Folder</h3>
+              <button onClick={() => setShowPixelPicker(false)} className="text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+            {pixels.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-8">No assets in your Pixel Folder yet. Add some from the Pixel Folder section.</p>
+            ) : (
+              <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
+                {pixels.map((asset) => (
+                  <button
+                    key={asset.id}
+                    onClick={() => insertPixelSnippet(asset)}
+                    className="w-full flex items-center gap-3 px-3 py-3 hover:bg-slate-50 transition-colors text-left"
+                  >
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${asset.type === "pixel" ? "text-violet-600 bg-violet-50 border-violet-200" : "text-sky-600 bg-sky-50 border-sky-200"}`}>
+                      {asset.type === "pixel" ? "Pixel" : "Image"}
+                    </span>
+                    <span className="text-sm text-slate-700 font-medium flex-1">{asset.name}</span>
+                    <span className="text-xs text-indigo-500 font-medium shrink-0">Insert →</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

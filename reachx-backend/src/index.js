@@ -14,6 +14,7 @@ const trackRoutes = require("./routes/track");
 const unsubscribeRoutes = require("./routes/unsubscribe");
 const webhookRoutes = require("./routes/webhooks");
 const cronRoutes = require("./routes/cron");
+const pixelRoutes = require("./routes/pixels");
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -34,6 +35,7 @@ app.use("/api/track", trackRoutes);
 app.use("/api/unsubscribe", unsubscribeRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/cron", cronRoutes);
+app.use("/api/pixels", pixelRoutes);
 
 // Health check
 app.get("/health", (req, res) => res.json({ status: "ok" }));
