@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String?
+  senderName    String?
+  replyTo       String?
+  createdAt     DateTime  @default(now())
+
+  campaigns     Campaign[]
+  contacts      Contact[]
+  workflows     Workflow[]
+  segments      Segment[]
+}
+
+model Contact {
+  id           String    @id @default(cuid())
+  email        String
+  name         String?
+  phone        String?
+  company      String?
+  tags         String?
+  userId       String
+  unsubscribed Boolean   @default(false)
+  bouncedAt    DateTime?
+  spamAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@unique([email, userId])
+}
+
+model Segment {
+  id          String   @id @default(cuid())
+  name        String
+  userId      String
+  filterType  String
+  filterValue String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model UnsubscribeToken {
+  id         String    @id @default(cuid())
+  token      String    @unique @default(cuid())
+  email      String
+  userId     String
+  campaignId String?
+  createdAt  DateTime  @default(now())
+  usedAt     DateTime?
+}
+
+model Campaign {
+  id                 String         @id @default(cuid())
+  name               String
+  subject            String
+  content            String
+  fromName           String?
+  replyTo            String?
+  status             CampaignStatus @default(DRAFT)
+  userId             String
+  followUpWorkflowId String?
+  followUpTrigger    String?
+  scheduledAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id])
+  recipients Recipient[]
+  events     EmailEvent[]
+}
+
+model Recipient {
+  id         String          @id @default(cuid())
+  email      String
+  status     RecipientStatus @default(PENDING)
+  campaign   Campaign        @relation(fields: [campaignId], references: [id])
+  campaignId String
+  createdAt  DateTime        @default(now())
+
+  events     EmailEvent[]
+}
+
+model EmailEvent {
+  id          String    @id @default(cuid())
+  eventType   EventType
+  campaignId  String
+  recipientId String
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+  recipient   Recipient @relation(fields: [recipientId], references: [id])
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
+}
+
+enum RecipientStatus {
+  PENDING
+  VALID
+  RISKY
+  INVALID
+}
+
+enum EventType {
+  SENT
+  OPENED
+  CLICKED
+  BOUNCED
+  SPAM
+  UNSUBSCRIBED
+}
+
+model Workflow {
+  id                String         @id @default(cuid())
+  name              String
+  status            WorkflowStatus @default(DRAFT)
+  triggerType       TriggerType
+  triggerConfig     Json?
+  userId            String
+  archived          Boolean        @default(false)
+  allowReEnrollment Boolean        @default(false)
+  exitOnUnsubscribe Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  user        User                 @relation(fields: [userId], references: [id])
+  steps       WorkflowStep[]
+  enrollments WorkflowEnrollment[]
+  versions    WorkflowVersion[]
+}
+
+model WorkflowVersion {
+  id         String   @id @default(cuid())
+  workflowId String
+  version    Int
+  stepsJson  Json
+  savedAt    DateTime @default(now())
+
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+}
+
+model WorkflowStep {
+  id         String    @id @default(cuid())
+  workflowId String
+  type       StepType
+  config     Json?
+  notes      String?
+  positionX  Float     @default(0)
+  positionY  Float     @default(0)
+  parentId   String?
+  branch     String?
+  order      Int       @default(0)
+
+  workflow   Workflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  parent     WorkflowStep?  @relation("StepChildren", fields: [parentId], references: [id])
+  children   WorkflowStep[] @relation("StepChildren")
+}
+
+model WorkflowEnrollment {
+  id            String           @id @default(cuid())
+  workflowId    String
+  contactEmail  String
+  currentStepId String?
+  status        EnrollmentStatus @default(ACTIVE)
+  errorMessage  String?
+  enrolledAt    DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  workflow      Workflow                  @relation(fields: [workflowId], references: [id])
+  events        WorkflowEnrollmentEvent[]
+
+  @@unique([workflowId, contactEmail])
+}
+
+model WorkflowEnrollmentEvent {
+  id           String   @id @default(cuid())
+  enrollmentId String
+  stepId       String?
+  eventType    String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  enrollment   WorkflowEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum TriggerType {
+  MANUAL
+  CONTACT_CREATED
+  TAG_ADDED
+  CAMPAIGN_OPENED
+  CAMPAIGN_CLICKED
+}
+
+enum StepType {
+  TRIGGER
+  SEND_EMAIL
+  WAIT
+  IF_CONDITION
+  UPDATE_TAG
+  REMOVE_TAG
+  GO_TO
+  END
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  FAILED
+  PAUSED
+}
