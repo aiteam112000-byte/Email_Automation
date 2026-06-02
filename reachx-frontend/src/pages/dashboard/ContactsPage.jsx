@@ -208,6 +208,17 @@ export default function ContactsPage() {
           <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xl">
             <div className="flex items-center justify-between"><h2 className="text-base font-bold text-slate-900">Import CSV</h2><button onClick={() => setShowImport(false)} className="text-slate-400 hover:text-slate-700">✕</button></div>
             <p className="text-sm text-slate-500">First row must be headers: <span className="font-mono text-slate-700">email, name, phone, company, tags</span></p>
+            <label className="flex items-center justify-center gap-3 border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl px-4 py-5 cursor-pointer transition-all hover:bg-indigo-50/30">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span className="text-sm text-slate-500">Upload a <span className="text-indigo-600 font-semibold">.csv file</span> or paste below</span>
+              <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => setCsvText(ev.target.result);
+                reader.readAsText(file);
+              }} />
+            </label>
             <textarea placeholder={"email,name,phone,company,tags\njohn@example.com,John Doe,,,newsletter"} rows={8} value={csvText} onChange={(e) => setCsvText(e.target.value)} className={`${inputCls} font-mono resize-none`} />
             <div className="flex gap-2">
               <button onClick={handleImport} disabled={loading || !csvText.trim()} className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold transition-all">{loading ? "Importing..." : "Import"}</button>

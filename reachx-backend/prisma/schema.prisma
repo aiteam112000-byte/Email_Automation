@@ -21,6 +21,7 @@ model User {
   workflows     Workflow[]
   segments      Segment[]
   pixelAssets   PixelAsset[]
+  gmailAccounts GmailAccount[]
 }
 
 model Contact {
@@ -138,6 +139,23 @@ model PixelAsset {
   createdAt   DateTime @default(now())
 
   user        User     @relation(fields: [userId], references: [id])
+}
+
+model GmailAccount {
+  id           String    @id @default(cuid())
+  userId       String
+  email        String
+  refreshToken String
+  accessToken  String?
+  tokenExpiry  DateTime?
+  clientId     String?
+  clientSecret String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, email])
 }
 
 model Workflow {

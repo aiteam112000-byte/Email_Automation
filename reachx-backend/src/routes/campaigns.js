@@ -6,6 +6,7 @@ const { sendEmail } = require("../lib/smtp");
 const { rewriteLinksForTracking } = require("../lib/rewriteLinks");
 const { workflowQueue } = require("../lib/workflowQueue");
 const { emailQueue } = require("../lib/queue");
+const { getNextGmailTransporter } = require("../lib/gmail");
 
 const router = express.Router();
 
@@ -106,7 +107,14 @@ router.post("/:id/send", requireAuth, async (req, res) => {
   });
   const unsubscribedEmails = new Set(unsubscribed.map((c) => c.email.toLowerCase()));
 
+  // Check if user has active Gmail accounts
+  const gmailAccounts = await prisma.gmailAccount.findMany({
+    where: { userId: req.user.id, isActive: true },
+  });
+  const useGmail = gmailAccounts.length > 0;
+
   let successCount = 0;
+  let gmailRRIndex = 0;
 
   for (const recipient of campaign.recipients) {
     if (unsubscribedEmails.has(recipient.email.toLowerCase())) continue;
@@ -123,14 +131,31 @@ router.post("/:id/send", requireAuth, async (req, res) => {
       const trackingPixel = `<img src="${appUrl}/api/track?rid=${recipient.id}&cid=${campaign.id}&type=open" width="1" height="1" style="display:none" />`;
       const htmlWithTracking = rewriteLinksForTracking(campaign.content, recipient.id, campaign.id, appUrl) + trackingPixel + unsubFooter;
 
-      await sendEmail({
-        to: recipient.email,
-        subject: campaign.subject,
-        htmlContent: htmlWithTracking,
-        fromName: resolvedFromName,
-        replyTo: resolvedReplyTo,
-        headers: { "X-ReachX-Recipient-Id": recipient.id, "X-ReachX-Campaign-Id": campaign.id },
-      });
+      if (useGmail) {
+        // Round-robin across active Gmail accounts
+        const account = gmailAccounts[gmailRRIndex % gmailAccounts.length];
+        gmailRRIndex++;
+        const { getTransporterForAccount } = require("../lib/gmail");
+        const transporter = await getTransporterForAccount(account);
+        const fromName = resolvedFromName ?? account.email;
+        await transporter.sendMail({
+          from: `"${fromName}" <${account.email}>`,
+          to: recipient.email,
+          subject: campaign.subject,
+          html: htmlWithTracking,
+          replyTo: resolvedReplyTo || undefined,
+          headers: { "X-ReachX-Recipient-Id": recipient.id, "X-ReachX-Campaign-Id": campaign.id },
+        });
+      } else {
+        await sendEmail({
+          to: recipient.email,
+          subject: campaign.subject,
+          htmlContent: htmlWithTracking,
+          fromName: resolvedFromName,
+          replyTo: resolvedReplyTo,
+          headers: { "X-ReachX-Recipient-Id": recipient.id, "X-ReachX-Campaign-Id": campaign.id },
+        });
+      }
 
       await prisma.emailEvent.create({ data: { eventType: "SENT", campaignId: campaign.id, recipientId: recipient.id } });
       successCount++;
@@ -191,6 +216,7 @@ router.post("/:id/recipients", requireAuth, async (req, res) => {
 // DELETE /api/campaigns/:id/recipients
 router.delete("/:id/recipients", requireAuth, async (req, res) => {
   const { recipientId } = req.body;
+  await prisma.emailEvent.deleteMany({ where: { recipientId } });
   await prisma.recipient.delete({ where: { id: recipientId, campaignId: req.params.id } });
   res.json({ ok: true });
 });

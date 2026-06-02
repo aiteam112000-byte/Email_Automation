@@ -7,7 +7,7 @@ const router = express.Router();
 
 // GET /api/track
 router.get("/", async (req, res) => {
-  const { rid: recipientId, cid: campaignId, type, url } = req.query;
+  const { rid: recipientId, cid: campaignId, type, url, pid: pixelAssetId } = req.query;
 
   if (recipientId && campaignId) {
     try {
@@ -18,7 +18,14 @@ router.get("/", async (req, res) => {
           where: { recipientId, campaignId, eventType: "OPENED" },
         });
         if (!existing) {
-          await prisma.emailEvent.create({ data: { eventType: "OPENED", campaignId, recipientId } });
+          await prisma.emailEvent.create({
+            data: {
+              eventType: "OPENED",
+              campaignId,
+              recipientId,
+              metadata: pixelAssetId ? { pixelAssetId } : undefined,
+            },
+          });
           await triggerFollowUpWorkflow(campaignId, recipientId, "opened");
           const recipient = await prisma.recipient.findUnique({ where: { id: recipientId } });
           if (recipient) {
@@ -27,6 +34,12 @@ router.get("/", async (req, res) => {
               triggerWorkflows(campaign.userId, "CAMPAIGN_OPENED", recipient.email, { campaignId }).catch(() => {});
             }
           }
+        } else if (pixelAssetId && !existing.metadata?.pixelAssetId) {
+          // Update existing open event with pixel asset info if not already set
+          await prisma.emailEvent.update({
+            where: { id: existing.id },
+            data: { metadata: { ...(existing.metadata ?? {}), pixelAssetId } },
+          });
         }
       } else if (eventType === "CLICKED") {
         await prisma.emailEvent.create({

@@ -17,6 +17,9 @@ export default function PixelFolderPage() {
   const [copied, setCopied] = useState(null);
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({ name: "", imageUrl: "" });
+  const [statsId, setStatsId] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   async function load() {
     const res = await api.get("/api/pixels");
@@ -57,9 +60,21 @@ export default function PixelFolderPage() {
     await load();
   }
 
+  async function loadStats(id) {
+    setStatsId(id);
+    setStats(null);
+    setStatsLoading(true);
+    const res = await api.get(`/api/pixels/${id}/stats`);
+    const data = await res.json();
+    setStats(data);
+    setStatsLoading(false);
+  }
+
   function getSnippet(asset) {
     if (asset.type === "pixel") {
-      return `<img src="${BASE}/api/track?pid=${asset.id}&type=open" width="1" height="1" style="display:none" alt="" />`;
+      // Use trackUrl from backend (contains correct APP_URL/ngrok), fallback to BASE
+      const src = asset.trackUrl ?? `${BASE}/api/track?pid=${asset.id}&type=open`;
+      return `<img src="${src}" width="1" height="1" style="display:none" alt="" />`;
     }
     return `<img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%" />`;
   }
@@ -129,6 +144,7 @@ export default function PixelFolderPage() {
                         onEditStart={() => { setEditId(asset.id); setEditForm({ name: asset.name, imageUrl: asset.imageUrl ?? "" }); }}
                         onEditSave={() => handleEdit(asset.id)}
                         onEditCancel={() => setEditId(null)}
+                        onStats={() => loadStats(asset.id)}
                         inputCls={inputCls}
                       />
                     ))}
@@ -243,16 +259,24 @@ export default function PixelFolderPage() {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            const dataUrl = ev.target.result;
-                            setUploadPreview(dataUrl);
-                            setForm((f) => ({ ...f, imageUrl: dataUrl }));
-                          };
-                          reader.readAsDataURL(file);
+                          // Show local preview immediately
+                          const localUrl = URL.createObjectURL(file);
+                          setUploadPreview(localUrl);
+                          // Upload to backend
+                          const fd = new FormData();
+                          fd.append("file", file);
+                          const token = localStorage.getItem("reachx_token");
+                          const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+                          const res = await fetch(`${BASE}/api/pixels/upload`, {
+                            method: "POST",
+                            headers: { Authorization: `Bearer ${token}` },
+                            body: fd,
+                          });
+                          const data = await res.json();
+                          setForm((f) => ({ ...f, imageUrl: data.url }));
                         }}
                       />
                     </label>
@@ -287,11 +311,46 @@ export default function PixelFolderPage() {
           </div>
         </div>
       )}
+
+      {/* Pixel Stats Modal */}
+      {statsId && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-lg w-full shadow-xl max-h-[80vh] flex flex-col space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Pixel Open Stats</h2>
+                {stats && <p className="text-xs text-slate-400 mt-0.5">{stats.name} — {stats.totalOpens} open{stats.totalOpens !== 1 ? "s" : ""}</p>}
+              </div>
+              <button onClick={() => { setStatsId(null); setStats(null); }} className="text-slate-400 hover:text-slate-700">✕</button>
+            </div>
+
+            {statsLoading ? (
+              <div className="text-center py-10 text-slate-400 text-sm">Loading...</div>
+            ) : !stats || stats.opens.length === 0 ? (
+              <div className="text-center py-10 text-slate-400 text-sm">No opens recorded yet for this pixel.</div>
+            ) : (
+              <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
+                {stats.opens.map((o, i) => (
+                  <div key={i} className="py-3 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{o.recipientEmail}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{o.campaignName}</p>
+                    </div>
+                    <span className="text-[11px] text-slate-400 shrink-0 mt-0.5">
+                      {new Date(o.openedAt).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function AssetRow({ asset, snippet, copied, onCopy, onDelete, editId, editForm, setEditForm, onEditStart, onEditSave, onEditCancel, inputCls }) {
+function AssetRow({ asset, snippet, copied, onCopy, onDelete, editId, editForm, setEditForm, onEditStart, onEditSave, onEditCancel, onStats, inputCls }) {
   const isEditing = editId === asset.id;
   const [editPreview, setEditPreview] = useState(null);
   const [editSource, setEditSource] = useState("url");
@@ -320,12 +379,21 @@ function AssetRow({ asset, snippet, copied, onCopy, onDelete, editId, editForm, 
                   ) : (
                     <span className="text-xs text-slate-400">Click to choose an image</span>
                   )}
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                  <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => { setEditPreview(ev.target.result); setEditForm((f) => ({ ...f, imageUrl: ev.target.result })); };
-                    reader.readAsDataURL(file);
+                    setEditPreview(URL.createObjectURL(file));
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    const token = localStorage.getItem("reachx_token");
+                    const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+                    const res = await fetch(`${BASE}/api/pixels/upload`, {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${token}` },
+                      body: fd,
+                    });
+                    const data = await res.json();
+                    setEditForm((f) => ({ ...f, imageUrl: data.url }));
                   }} />
                 </label>
               )}
@@ -348,8 +416,7 @@ function AssetRow({ asset, snippet, copied, onCopy, onDelete, editId, editForm, 
             {asset.type === "image" && asset.imageUrl && (
               <div className="flex items-center gap-2">
                 <img src={asset.imageUrl} alt={asset.name} className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0" onError={(e) => { e.target.style.display = "none"; }} />
-                <p className="text-xs text-slate-400 truncate font-mono">{asset.imageUrl.startsWith("data:") ? "Uploaded image" : asset.imageUrl}</p>
-              </div>
+                <p className="text-xs text-slate-400 truncate font-mono">{asset.imageUrl.startsWith("data:") ? "Uploaded image" : asset.imageUrl}</p>              </div>
             )}
             <div className="flex items-center gap-2">
               <code className="text-[11px] text-slate-500 bg-slate-100 rounded-lg px-2 py-1 truncate max-w-sm font-mono">{snippet}</code>
@@ -362,6 +429,9 @@ function AssetRow({ asset, snippet, copied, onCopy, onDelete, editId, editForm, 
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
+            {asset.type === "pixel" && (
+              <button onClick={onStats} className="text-xs text-violet-500 hover:text-violet-700 border border-violet-200 hover:bg-violet-50 px-2.5 py-1.5 rounded-lg transition-all font-medium">Stats</button>
+            )}
             <button onClick={onEditStart} className="text-xs text-slate-400 hover:text-slate-700 border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5 rounded-lg transition-all">Edit</button>
             <button onClick={onDelete} className="text-xs text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-200 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-all">Delete</button>
           </div>

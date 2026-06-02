@@ -1,6 +1,7 @@
 require("dotenv/config");
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 
 const authRoutes = require("./routes/auth");
 const campaignRoutes = require("./routes/campaigns");
@@ -15,12 +16,16 @@ const unsubscribeRoutes = require("./routes/unsubscribe");
 const webhookRoutes = require("./routes/webhooks");
 const cronRoutes = require("./routes/cron");
 const pixelRoutes = require("./routes/pixels");
+const gmailRoutes = require("./routes/gmail");
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
 
 app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:3000", credentials: true }));
 app.use(express.json({ limit: "10mb" }));
+
+// Serve uploaded images as static files
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // Routes
 app.use("/api/auth", authRoutes);
@@ -36,6 +41,7 @@ app.use("/api/unsubscribe", unsubscribeRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/cron", cronRoutes);
 app.use("/api/pixels", pixelRoutes);
+app.use("/api/gmail", gmailRoutes);
 
 // Health check
 app.get("/health", (req, res) => res.json({ status: "ok" }));
@@ -43,7 +49,8 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 // Scheduler
 function startScheduler() {
   if (process.env.NODE_ENV !== "production" && process.env.ENABLE_SCHEDULER !== "true") return;
-  const appUrl = process.env.APP_URL ?? `http://localhost:${PORT}`;
+  // Always use localhost for internal scheduler calls, not the public APP_URL
+  const appUrl = `http://localhost:${PORT}`;
   const secret = process.env.CRON_SECRET ?? "";
   console.log("[scheduler] Starting — checking for scheduled campaigns every 60s");
   setInterval(async () => {
