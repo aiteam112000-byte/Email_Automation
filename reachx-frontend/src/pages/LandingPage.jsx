@@ -52,8 +52,7 @@ export default function LandingPage() {
           <img src={horizontalLogo} alt="GTM Reach" className="lh-nav-logo-img" />
         </a>
         <div className="lh-nav-actions">
-          <button className="lh-btn-ghost">Sign in</button>
-          <button className="lh-btn-primary">Start for free</button>
+          <a href="/login" className="lh-btn-primary">Login</a>
         </div>
       </nav>
 
