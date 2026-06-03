@@ -92,7 +92,7 @@ export default function PixelFolderPage() {
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar />
       <main className="flex-1 overflow-auto">
-        <div className="max-w-4xl mx-auto px-8 py-8 space-y-7">
+        <div className="max-w-6xl mx-auto px-8 py-8 space-y-7">
           {/* Header */}
           <div className="flex items-center justify-between pt-1">
             <div>

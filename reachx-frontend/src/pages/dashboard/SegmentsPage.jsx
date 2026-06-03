@@ -57,7 +57,7 @@ export default function SegmentsPage() {
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar />
       <main className="flex-1 overflow-auto">
-        <div className="max-w-5xl mx-auto px-8 py-8 space-y-6">
+        <div className="max-w-6xl mx-auto px-8 py-8 space-y-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between pt-1">
             <div>
               <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Saved segments</h1>

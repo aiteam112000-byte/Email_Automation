@@ -133,7 +133,7 @@ export default function CampaignDetailPage() {
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar />
       <main className="flex-1 overflow-auto">
-        <div className="max-w-5xl mx-auto px-8 py-8 space-y-7">
+        <div className="max-w-6xl mx-auto px-8 py-8 space-y-7">
           <div className="flex items-start justify-between gap-4 pt-1">
             <div>
               <Link to="/dashboard/campaigns" className="text-slate-400 hover:text-slate-700 text-sm transition-colors">← Campaigns</Link>
