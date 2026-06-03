@@ -33,12 +33,6 @@ export default function DashboardPage() {
               <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-widest mb-1">Dashboard</p>
               <h1 className="text-xl font-bold text-slate-900 tracking-tight">Good to see you, <span className="text-blue-900">{name}</span></h1>
             </div>
-            <Link to="/dashboard/campaigns/new">
-              <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm hover:-translate-y-px">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                New Campaign
-              </button>
-            </Link>
           </div>
 
           {stats && (
@@ -64,23 +58,6 @@ export default function DashboardPage() {
               ))}
             </div>
           )}
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {[
-              { title: "New Campaign",    desc: "Create and send an email campaign", to: "/dashboard/campaigns/new", color: "text-indigo-600",  bg: "bg-indigo-50 border-indigo-100" },
-              { title: "Validate Emails", desc: "Check a list before sending",       to: "/dashboard/validate",      color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-100" },
-              { title: "View Analytics",  desc: "Deep dive into performance",        to: "/dashboard/analytics",     color: "text-violet-600",  bg: "bg-violet-50 border-violet-100" },
-            ].map((a) => (
-              <Link key={a.title} to={a.to} className="group flex items-center gap-4 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-2xl p-4 transition-all hover:shadow-sm">
-                <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${a.bg} ${a.color}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-800">{a.title}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{a.desc}</div>
-                </div>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-slate-500 transition-all shrink-0"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-              </Link>
-            ))}
-          </div>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
