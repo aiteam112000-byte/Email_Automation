@@ -38,9 +38,9 @@ export default function DashboardPage() {
           {stats && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: "Campaigns",   value: String(stats.totalCampaigns),                    sub: "total created",         color: "text-indigo-600",  bar: "bg-indigo-500",  barW: Math.min(stats.totalCampaigns * 10, 100) },
-                { label: "Emails Sent", value: stats.totalSent.toLocaleString(),                sub: "all time",              color: "text-sky-600",     bar: "bg-sky-500",     barW: Math.min(stats.totalSent, 100) },
-                { label: "Open Rate",   value: stats.openRate  ? `${stats.openRate}%`  : "—",   sub: "avg. across campaigns", color: "text-violet-600",  bar: "bg-violet-500",  barW: stats.openRate  ? Math.min(parseFloat(stats.openRate),  100) : 0 },
+                { label: "Campaigns",   value: String(stats.totalCampaigns),                    sub: "total created",         color: "text-blue-900",  bar: "bg-blue-900",  barW: Math.min(stats.totalCampaigns * 10, 100) },
+                { label: "Emails Sent", value: stats.totalSent.toLocaleString(),                sub: "all time",              color: "text-blue-900",  bar: "bg-blue-900",  barW: Math.min(stats.totalSent, 100) },
+                { label: "Open Rate",   value: stats.openRate  ? `${stats.openRate}%`  : "—",   sub: "avg. across campaigns", color: "text-blue-900",  bar: "bg-blue-900",  barW: stats.openRate  ? Math.min(parseFloat(stats.openRate),  100) : 0 },
                 { label: "Click Rate",  value: stats.clickRate ? `${stats.clickRate}%` : "—",   sub: "avg. across campaigns", color: "text-emerald-600", bar: "bg-emerald-500", barW: stats.clickRate ? Math.min(parseFloat(stats.clickRate), 100) : 0 },
               ].map((s) => (
                 <div key={s.label} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 hover:border-slate-300 hover:shadow-sm transition-all">
