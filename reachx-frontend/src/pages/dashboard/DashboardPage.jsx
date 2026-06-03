@@ -31,7 +31,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between pt-1">
             <div>
               <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-widest mb-1">Dashboard</p>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Good to see you, <span className="text-indigo-600">{name}</span></h1>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Good to see you, <span className="text-blue-900">{name}</span></h1>
             </div>
             <Link to="/dashboard/campaigns/new">
               <button className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-sm hover:-translate-y-px">
