@@ -4,6 +4,14 @@ import Sidebar from "../../components/Sidebar";
 import { api } from "../../lib/api";
 
 const inputCls = "w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all";
+
+function replaceTemplatePlaceholders(text, data) {
+  return text.replace(/{{\s*(name|email|company)\s*}}/gi, (_, key) => {
+    const value = data[key.toLowerCase()];
+    return value != null ? String(value) : "";
+  });
+}
+
 const STEPS = [{ n: 1, label: "Campaign Info" }, { n: 2, label: "Email Content" }, { n: 3, label: "Recipients" }];
 
 export default function NewCampaignPage() {
@@ -56,7 +64,7 @@ export default function NewCampaignPage() {
       <Sidebar />
       <main className="flex-1 overflow-auto">
         <div className="border-b border-slate-200 bg-white">
-          <div className="max-w-3xl mx-auto px-8 flex items-center">
+          <div className="max-w-6xl mx-auto px-8 flex items-center">
             {STEPS.map((s, i) => {
               const done = step > s.n;
               const active = step === s.n;
@@ -86,7 +94,7 @@ export default function NewCampaignPage() {
           </div>
         </div>
 
-        <div className="max-w-3xl mx-auto px-8 py-10 space-y-6">
+        <div className="max-w-6xl mx-auto px-8 py-10 space-y-6">
           <Link to="/dashboard/campaigns" className="text-slate-400 hover:text-slate-700 transition-colors text-sm">← Campaigns</Link>
 
           {step === 1 && (
@@ -111,10 +119,25 @@ export default function NewCampaignPage() {
                   <span className="text-xs text-slate-400 w-16 shrink-0">Subject:</span>
                   <span className="text-sm text-slate-700 font-medium">{subject}</span>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700">Email body</label>
-                  <p className="text-xs text-slate-400">HTML or plain text. Use {`{{name}}`}, {`{{email}}`}, {`{{company}}`} as placeholders.</p>
-                  <textarea placeholder={"<p>Hello {{name}},</p>\n<p>Here's your update...</p>"} value={content} onChange={(e) => setContent(e.target.value)} rows={14} className={`${inputCls} font-mono resize-none`} />
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700">Email body</label>
+                    <p className="text-xs text-slate-400">HTML or plain text. Use {`{{name}}`}, {`{{email}}`}, {`{{company}}`} as placeholders.</p>
+                    <textarea placeholder={"<p>Hello {{name}},</p>\n<p>Here's your update...</p>"} value={content} onChange={(e) => setContent(e.target.value)} rows={14} className={`${inputCls} font-mono resize-none`} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Preview</p>
+                      <p className="text-xs text-slate-400">John Doe · Acme Corp</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-[409px] overflow-auto">
+                      {content.trim() ? (
+                        <div className="text-slate-700 prose prose-sm prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: replaceTemplatePlaceholders(content.replace(/\n/g, "<br/>"), { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" }) }} />
+                      ) : (
+                        <p className="text-sm text-slate-400">Paste your email HTML or plain text here to preview it with example data.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

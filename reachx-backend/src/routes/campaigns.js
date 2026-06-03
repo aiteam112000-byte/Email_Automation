@@ -27,6 +27,23 @@ async function quickValidate(email) {
   }
 }
 
+function formatNameFromEmail(email) {
+  const local = email.split("@")[0] || "";
+  return local
+    .replace(/[._]/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word[0]?.toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function replaceTemplatePlaceholders(text, data) {
+  return text.replace(/{{\s*(name|email|company)\s*}}/gi, (_, key) => {
+    const value = data[key.toLowerCase()];
+    return value != null ? String(value) : "";
+  });
+}
+
 // GET /api/campaigns
 router.get("/", requireAuth, async (req, res) => {
   const campaigns = await prisma.campaign.findMany({
@@ -107,6 +124,12 @@ router.post("/:id/send", requireAuth, async (req, res) => {
   });
   const unsubscribedEmails = new Set(unsubscribed.map((c) => c.email.toLowerCase()));
 
+  const contactRecords = await prisma.contact.findMany({
+    where: { userId: req.user.id, email: { in: campaign.recipients.map((r) => r.email) } },
+    select: { email: true, name: true, company: true },
+  });
+  const contactByEmail = new Map(contactRecords.map((contact) => [contact.email.toLowerCase(), contact]));
+
   // Check if user has active Gmail accounts
   const gmailAccounts = await prisma.gmailAccount.findMany({
     where: { userId: req.user.id, isActive: true },
@@ -121,6 +144,15 @@ router.post("/:id/send", requireAuth, async (req, res) => {
     if (recipient.status === "INVALID") continue;
 
     try {
+      const contact = contactByEmail.get(recipient.email.toLowerCase());
+      const replacements = {
+        name: contact?.name?.trim() || formatNameFromEmail(recipient.email),
+        email: recipient.email,
+        company: contact?.company?.trim() || "",
+      };
+      const personalizedSubject = replaceTemplatePlaceholders(campaign.subject, replacements);
+      const personalizedContent = replaceTemplatePlaceholders(campaign.content, replacements);
+
       const unsub = await prisma.unsubscribeToken.create({
         data: { email: recipient.email, userId: req.user.id, campaignId: campaign.id },
       });
@@ -129,7 +161,7 @@ router.post("/:id/send", requireAuth, async (req, res) => {
         Don't want to receive these emails? <a href="${unsubLink}" style="color:#6366f1;">Unsubscribe</a>
       </div>`;
       const trackingPixel = `<img src="${appUrl}/api/track?rid=${recipient.id}&cid=${campaign.id}&type=open" width="1" height="1" style="display:none" />`;
-      const htmlWithTracking = rewriteLinksForTracking(campaign.content, recipient.id, campaign.id, appUrl) + trackingPixel + unsubFooter;
+      const htmlWithTracking = rewriteLinksForTracking(personalizedContent, recipient.id, campaign.id, appUrl) + trackingPixel + unsubFooter;
 
       if (useGmail) {
         // Round-robin across active Gmail accounts
@@ -141,7 +173,7 @@ router.post("/:id/send", requireAuth, async (req, res) => {
         await transporter.sendMail({
           from: `"${fromName}" <${account.email}>`,
           to: recipient.email,
-          subject: campaign.subject,
+          subject: personalizedSubject,
           html: htmlWithTracking,
           replyTo: resolvedReplyTo || undefined,
           headers: { "X-ReachX-Recipient-Id": recipient.id, "X-ReachX-Campaign-Id": campaign.id },
@@ -149,7 +181,7 @@ router.post("/:id/send", requireAuth, async (req, res) => {
       } else {
         await sendEmail({
           to: recipient.email,
-          subject: campaign.subject,
+          subject: personalizedSubject,
           htmlContent: htmlWithTracking,
           fromName: resolvedFromName,
           replyTo: resolvedReplyTo,
