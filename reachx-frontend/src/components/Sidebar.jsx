@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { logout } from "../lib/auth";
 import { getUser } from "../lib/api";
+import horizontalLogo from "../assests/transparent-horizontal-removebg-preview.png";
 
 const NAV = [
   { label: "Overview", href: "/dashboard", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg> },
@@ -22,17 +23,8 @@ export default function Sidebar() {
   return (
     <aside className="w-[220px] shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-slate-200">
       <div className="px-5 pt-6 pb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-sm shrink-0">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-              <polyline points="22,6 12,13 2,6"/>
-            </svg>
-          </div>
-          <div>
-            <span className="font-bold text-slate-900 text-[15px] tracking-tight leading-none">ReachX</span>
-            <p className="text-[10px] text-slate-400 mt-0.5">Email Platform</p>
-          </div>
+        <div className="flex items-center">
+          <img src={horizontalLogo} alt="GTM Reach" className="h-8 w-auto" />
         </div>
       </div>
 
