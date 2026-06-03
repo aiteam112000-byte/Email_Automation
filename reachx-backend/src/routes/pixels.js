@@ -22,7 +22,7 @@ const upload = multer({
   },
 });
 
-// POST /api/pixels/upload — upload an image file, returns its URL
+// POST /api/pixels/uploadupload an image file, returns its URL
 router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
   const appUrl = process.env.APP_URL ?? "http://localhost:4000";
@@ -79,7 +79,7 @@ router.delete("/:id", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /api/pixels/:id/stats — who opened emails containing this pixel
+// GET /api/pixels/:id/statswho opened emails containing this pixel
 router.get("/:id/stats", requireAuth, async (req, res) => {
   const asset = await prisma.pixelAsset.findFirst({ where: { id: req.params.id, userId: req.user.id } });
   if (!asset) return res.status(404).json({ error: "Not found" });

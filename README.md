@@ -1,6 +1,6 @@
-# ReachX — Email Marketing Platform
+# ReachXEmail Marketing Platform
 
-ReachX is a full-stack email marketing platform built for modern GTM teams. It combines Gmail OAuth sending, real-time email validation, per-recipient pixel tracking, visual workflow automation, and deep campaign analytics — all in one place.
+ReachX is a full-stack email marketing platform built for modern GTM teams. It combines Gmail OAuth sending, real-time email validation, per-recipient pixel tracking, visual workflow automation, and deep campaign analyticsall in one place.
 
 ---
 
@@ -13,13 +13,13 @@ Connect multiple Gmail accounts via Google OAuth2. ReachX round-robins campaign 
 Create email campaigns with a subject line, HTML content, and a recipient list. Send immediately or schedule for a future date. Track delivery, opens, clicks, bounces, and unsubscribes per campaign.
 
 ### Email Validation
-Validate email addresses before sending — format checks, MX record lookups, and mailbox existence verification. Bulk validate your full contact list in one go to protect your sender reputation.
+Validate email addresses before sendingformat checks, MX record lookups, and mailbox existence verification. Bulk validate your full contact list in one go to protect your sender reputation.
 
 ### Pixel Folder
-Manage tracking pixels and image assets in a central folder. Create named tracking pixels, upload images, and insert them into campaigns with a single click. See per-recipient open stats per pixel asset — know exactly who opened, when, and from which campaign.
+Manage tracking pixels and image assets in a central folder. Create named tracking pixels, upload images, and insert them into campaigns with a single click. See per-recipient open stats per pixel assetknow exactly who opened, when, and from which campaign.
 
 ### Open & Click Tracking
-Every email sent includes a per-recipient tracking pixel and rewritten click links. Opens and clicks are recorded individually per recipient, giving you real engagement data — not campaign-level estimates.
+Every email sent includes a per-recipient tracking pixel and rewritten click links. Opens and clicks are recorded individually per recipient, giving you real engagement datanot campaign-level estimates.
 
 ### Visual Workflow Builder
 An n8n-style drag-and-drop canvas for building email automation sequences. Add steps (Trigger, Send Email, Wait, If/Else, Update Tag, Remove Tag, End), connect them with arrows, and configure each step in a side panel. If/Else nodes support Yes/No branch routing.
@@ -37,7 +37,7 @@ Schedule campaigns to send at a future date and time. A built-in scheduler check
 Attach a workflow to any campaign. After sending, contacts are automatically enrolled into the linked workflow based on a trigger (all recipients, opened, or clicked).
 
 ### Workflow Automation Engine
-Background BullMQ workers process workflow enrollments with Redis. Supports wait steps (minutes, hours, days), conditional branching, tag updates, and email sends — all non-blocking.
+Background BullMQ workers process workflow enrollments with Redis. Supports wait steps (minutes, hours, days), conditional branching, tag updates, and email sendsall non-blocking.
 
 ---
 
@@ -170,7 +170,7 @@ The app will be available at `http://localhost:3000`.
 | POST | `/api/pixels/upload` | Upload an image asset |
 | GET | `/api/pixels/:id/stats` | Per-recipient open stats for a pixel |
 | GET | `/api/gmail/auth-url` | Get Google OAuth URL for Gmail connect |
-| GET | `/api/gmail/callback` | OAuth callback — saves refresh token |
+| GET | `/api/gmail/callback` | OAuth callbacksaves refresh token |
 | GET | `/api/gmail/accounts` | List connected Gmail accounts |
 | GET | `/api/track` | Tracking pixel endpoint (opens + clicks) |
 | GET | `/api/workflows` | List workflows |

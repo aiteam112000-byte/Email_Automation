@@ -319,7 +319,7 @@ export default function PixelFolderPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-slate-900">Pixel Open Stats</h2>
-                {stats && <p className="text-xs text-slate-400 mt-0.5">{stats.name} — {stats.totalOpens} open{stats.totalOpens !== 1 ? "s" : ""}</p>}
+                {stats && <p className="text-xs text-slate-400 mt-0.5">{stats.name}{stats.totalOpens} open{stats.totalOpens !== 1 ? "s" : ""}</p>}
               </div>
               <button onClick={() => { setStatsId(null); setStats(null); }} className="text-slate-400 hover:text-slate-700">✕</button>
             </div>

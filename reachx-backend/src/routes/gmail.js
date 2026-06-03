@@ -6,7 +6,7 @@ const { getAuthUrl, exchangeCodeForTokens } = require("../lib/gmail");
 const router = express.Router();
 
 // GET /api/gmail/auth-url?clientId=...&clientSecret=...
-// Returns the Google OAuth URL — called with Bearer token from frontend
+// Returns the Google OAuth URLcalled with Bearer token from frontend
 router.get("/auth-url", requireAuth, (req, res) => {
   const clientId = req.query.clientId || process.env.GOOGLE_CLIENT_ID;
   const clientSecret = req.query.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
@@ -19,7 +19,7 @@ router.get("/auth-url", requireAuth, (req, res) => {
   res.json({ url });
 });
 
-// GET /api/gmail/callback — Google redirects here after user authorizes
+// GET /api/gmail/callbackGoogle redirects here after user authorizes
 router.get("/callback", async (req, res) => {
   const { code, state, error } = req.query;
   const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
@@ -74,7 +74,7 @@ router.get("/accounts", requireAuth, async (req, res) => {
   res.json(accounts);
 });
 
-// PATCH /api/gmail/accounts/:id — toggle active
+// PATCH /api/gmail/accounts/:idtoggle active
 router.patch("/accounts/:id", requireAuth, async (req, res) => {
   const account = await prisma.gmailAccount.findFirst({
     where: { id: req.params.id, userId: req.user.id },
@@ -89,7 +89,7 @@ router.patch("/accounts/:id", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-// DELETE /api/gmail/accounts/:id — disconnect
+// DELETE /api/gmail/accounts/:iddisconnect
 router.delete("/accounts/:id", requireAuth, async (req, res) => {
   const account = await prisma.gmailAccount.findFirst({
     where: { id: req.params.id, userId: req.user.id },

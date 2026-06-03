@@ -113,7 +113,7 @@ export default function NewCampaignPage() {
 
           {step === 2 && (
             <div className="space-y-6">
-              <div><h1 className="text-xl font-bold text-slate-900 tracking-tight">Email Content</h1><p className="text-slate-400 text-sm mt-1">Write your email body — HTML or plain text.</p></div>
+              <div><h1 className="text-xl font-bold text-slate-900 tracking-tight">Email Content</h1><p className="text-slate-400 text-sm mt-1">Write your email bodyHTML or plain text.</p></div>
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
                   <span className="text-xs text-slate-400 w-16 shrink-0">Subject:</span>

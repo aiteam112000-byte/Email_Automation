@@ -10,7 +10,7 @@ function rewriteLinksForTracking(html, recipientId, campaignId, appUrl) {
     }
   );
 
-  // Rewrite pixel folder pixel tags — inject rid and cid per recipient
+  // Rewrite pixel folder pixel tagsinject rid and cid per recipient
   // Matches any img src containing /api/track?pid=
   result = result.replace(
     /src=["']([^"']*\/api\/track\?pid=([^&"']+)[^"']*)["']/gi,

@@ -45,7 +45,7 @@ export default function ValidatePage() {
         <div>
           <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-widest mb-1">Tools</p>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Email Validation</h1>
-          <p className="text-slate-400 text-sm mt-1.5 max-w-lg">Paste emails below — each one is checked for format, MX records, and mailbox existence.</p>
+          <p className="text-slate-400 text-sm mt-1.5 max-w-lg">Paste emails beloweach one is checked for format, MX records, and mailbox existence.</p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">

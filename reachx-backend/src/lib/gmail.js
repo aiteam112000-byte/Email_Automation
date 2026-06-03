@@ -2,7 +2,7 @@ const { google } = require("googleapis");
 const nodemailer = require("nodemailer");
 const { prisma } = require("./prisma");
 
-// Build an OAuth2 client — uses per-account credentials if provided, falls back to env
+// Build an OAuth2 clientuses per-account credentials if provided, falls back to env
 function getOAuthClient(clientId, clientSecret) {
   return new google.auth.OAuth2(
     clientId ?? process.env.GOOGLE_CLIENT_ID,

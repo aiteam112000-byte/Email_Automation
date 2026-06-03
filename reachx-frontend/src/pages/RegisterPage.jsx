@@ -43,7 +43,7 @@ export default function RegisterPage() {
             <h2 className="text-4xl font-bold text-white leading-tight tracking-tight">Start sending<br />smarter today.</h2>
           </div>
           <div className="space-y-3">
-            {[{ icon: "✉️", title: "Campaign Engine", desc: "Create, send, and track email campaigns" }, { icon: "🔍", title: "Email Validation", desc: "SMTP-level checks before you send" }, { icon: "📊", title: "Smart Analytics", desc: "Opens, clicks, bounces — all in one place" }, { icon: "⚡", title: "Background Queue", desc: "Reliable delivery with Redis + BullMQ" }].map((f) => (
+            {[{ icon: "✉️", title: "Campaign Engine", desc: "Create, send, and track email campaigns" }, { icon: "🔍", title: "Email Validation", desc: "SMTP-level checks before you send" }, { icon: "📊", title: "Smart Analytics", desc: "Opens, clicks, bouncesall in one place" }, { icon: "⚡", title: "Background Queue", desc: "Reliable delivery with Redis + BullMQ" }].map((f) => (
               <div key={f.title} className="flex items-center gap-3 bg-white/10 border border-white/20 rounded-xl px-4 py-3">
                 <span className="text-lg shrink-0">{f.icon}</span>
                 <div><div className="text-xs font-semibold text-white">{f.title}</div><div className="text-xs text-indigo-200 mt-0.5">{f.desc}</div></div>

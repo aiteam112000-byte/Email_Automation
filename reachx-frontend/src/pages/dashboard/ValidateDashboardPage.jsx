@@ -34,7 +34,7 @@ export default function ValidateDashboardPage() {
           <div className="pt-1">
             <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-widest mb-1">Tools</p>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Email Validation</h1>
-            <p className="text-slate-400 text-sm mt-1">Format checks, MX record lookups, and mailbox existence — before you send.</p>
+            <p className="text-slate-400 text-sm mt-1">Format checks, MX record lookups, and mailbox existencebefore you send.</p>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">

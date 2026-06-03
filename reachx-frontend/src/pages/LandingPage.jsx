@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import heroImage from "../assests/hero.jpg";
 import automationImage from "../assests/automation.jpg";
 import gmailOuthImage from "../assests/gmail-outh.jpg";
@@ -69,7 +69,7 @@ export default function LandingPage() {
             </h1>
             <p className="lh-hero-desc">
               Validate emails, launch personalized campaigns, track every engagement,
-              and automate follow-ups — all in one powerful platform.
+              and automate follow-upsall in one powerful platform.
             </p>
             <div className="lh-hero-checks">
               {["Gmail OAuth Sending", "Real-time Validation", "Workflow Automation"].map((c) => (
@@ -89,7 +89,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* RIGHT — mockup */}
+          {/* RIGHTmockup */}
           <div className="lh-hero-right">
             <div className="lh-hero-media">
               <img src={heroImage} alt="GTM Reach dashboard preview" />
@@ -101,7 +101,7 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
-            {/* Dashboard mockup removed — hero uses the image only */}
+            {/* Dashboard mockup removedhero uses the image only */}
           </div>
         </div>
       </section>

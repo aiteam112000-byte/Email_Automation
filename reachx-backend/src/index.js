@@ -52,7 +52,7 @@ function startScheduler() {
   // Always use localhost for internal scheduler calls, not the public APP_URL
   const appUrl = `http://localhost:${PORT}`;
   const secret = process.env.CRON_SECRET ?? "";
-  console.log("[scheduler] Starting — checking for scheduled campaigns every 60s");
+  console.log("[scheduler] Startingchecking for scheduled campaigns every 60s");
   setInterval(async () => {
     try {
       const res = await fetch(`${appUrl}/api/cron/send-scheduled`, {
