@@ -9,6 +9,18 @@ const { emailQueue } = require("../lib/queue");
 const { getNextGmailTransporter } = require("../lib/gmail");
 
 const router = express.Router();
+const path = require("path");
+const fs = require("fs/promises");
+const multer = require("multer");
+
+const storage = multer.diskStorage({
+  destination: path.join(__dirname, "../../uploads"),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || "";
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_PROJECT = process.env.GEMINI_PROJECT;
 const GEMINI_LOCATION = process.env.GEMINI_LOCATION ?? "us-central1";
@@ -48,6 +60,10 @@ function replaceTemplatePlaceholders(text, data) {
   });
 }
 
+function isHtmlContent(text) {
+  return /<[^>]+>/.test(String(text));
+}
+
 function capitalize(text) {
   return String(text)
     .trim()
@@ -58,19 +74,45 @@ function capitalize(text) {
 }
 
 function parseGeminiJsonOutput(output) {
-  const match = String(output).match(/\{[\s\S]*\}/);
-  if (!match) return null;
+  let text = String(output).trim();
+  
+  // Remove markdown code blocks if present
+  text = text.replace(/^```json\s*/, "").replace(/\n?```\s*$/, "").trim();
+  
   try {
-    return JSON.parse(match[0]);
-  } catch {
-    return null;
+    // Try to parse directly first
+    const parsed = JSON.parse(text);
+    if (parsed.subject && parsed.content) {
+      return parsed;
+    }
+  } catch (e) {
+    // If direct parse fails, try to extract JSON object
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch { }
+    }
   }
+  return null;
 }
 
 async function generateEmailTemplateWithGemini(prompt) {
   if (!GEMINI_API_KEY) return generateEmailTemplate(prompt);
 
-  const formattedPrompt = `Create an email subject and body using placeholders {{name}}, {{company}}, and {{email}}. Return only valid JSON with keys "subject" and "content".\n\nPrompt: ${prompt}`;
+  const formattedPrompt = `Create a professional email with a subject line and body using placeholders {{name}}, {{company}}, and {{email}}.
+
+Generate plain text email content (no HTML tags, just natural text with line breaks).
+
+Return ONLY valid JSON with these exact keys:
+{
+  "subject": "subject line here",
+  "content": "plain text email body here with line breaks"
+}
+
+Do NOT wrap in markdown code blocks or any other text. Just the JSON.
+
+Prompt: ${prompt}`;
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
 
   const response = await fetch(endpoint, {
@@ -89,8 +131,8 @@ async function generateEmailTemplateWithGemini(prompt) {
         },
       ],
       generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 512,
+        temperature: 0.3,
+        maxOutputTokens: 1024,
       },
     }),
   });
@@ -105,11 +147,11 @@ async function generateEmailTemplateWithGemini(prompt) {
   const parsed = parseGeminiJsonOutput(rawText);
 
   if (parsed?.subject && parsed?.content) {
-    return { subject: parsed.subject.trim(), content: parsed.content.trim() };
+    return { subject: String(parsed.subject).trim(), content: String(parsed.content).trim() };
   }
 
   const fallback = generateEmailTemplate(prompt);
-  return { subject: fallback.subject, content: rawText.trim() || fallback.content };
+  return { subject: fallback.subject, content: fallback.content };
 }
 
 function generateEmailTemplate(prompt) {
@@ -172,6 +214,32 @@ router.get("/", requireAuth, async (req, res) => {
   res.json(campaigns);
 });
 
+// POST /api/campaigns/draft
+router.post("/draft", requireAuth, async (req, res) => {
+  const { name, subject, content } = req.body;
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const campaign = await prisma.campaign.create({
+      data: {
+        name: name || "Draft",
+        subject: subject ?? "",
+        content: content ?? "",
+        userId,
+      },
+    });
+    res.status(201).json(campaign);
+  } catch (err) {
+    if (err?.code === "P2003") {
+      return res.status(400).json({ error: "Unable to create campaign: invalid user or related record." });
+    }
+    throw err;
+  }
+});
+
 // POST /api/campaigns
 router.post("/", requireAuth, async (req, res) => {
   const { name, subject, content, recipients } = req.body;
@@ -179,26 +247,80 @@ router.post("/", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const campaign = await prisma.campaign.create({
-    data: {
-      name, subject, content,
-      userId: req.user.id,
-      recipients: {
-        create: (recipients || []).map((email) => ({ email })),
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const campaign = await prisma.campaign.create({
+      data: {
+        name,
+        subject,
+        content,
+        userId,
+        recipients: {
+          create: (recipients || []).map((email) => ({ email })),
+        },
       },
-    },
-  });
-  res.status(201).json(campaign);
+    });
+    res.status(201).json(campaign);
+  } catch (err) {
+    if (err?.code === "P2003") {
+      return res.status(400).json({ error: "Unable to create campaign: invalid user or related record." });
+    }
+    throw err;
+  }
 });
 
 // GET /api/campaigns/:id
 router.get("/:id", requireAuth, async (req, res) => {
   const campaign = await prisma.campaign.findFirst({
     where: { id: req.params.id, userId: req.user.id },
-    include: { recipients: true, events: { orderBy: { createdAt: "desc" } } },
+    include: { recipients: true, events: { orderBy: { createdAt: "desc" } }, attachments: true },
   });
   if (!campaign) return res.status(404).json({ error: "Not found" });
   res.json(campaign);
+});
+
+// POST /api/campaigns/:id/attachments
+router.post("/:id/attachments", requireAuth, upload.single("file"), async (req, res) => {
+  const campaign = await prisma.campaign.findFirst({ where: { id: req.params.id, userId: req.user.id } });
+  if (!campaign) return res.status(404).json({ error: "Not found" });
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+  const appUrl = process.env.APP_URL ?? "http://localhost:4000";
+  const url = `${appUrl}/uploads/${req.file.filename}`;
+
+  const rec = await prisma.campaignAttachment.create({
+    data: {
+      campaignId: campaign.id,
+      filename: req.file.originalname,
+      storedFilename: req.file.filename,
+      url,
+      contentType: req.file.mimetype,
+      size: req.file.size,
+    },
+  });
+
+  res.status(201).json(rec);
+});
+
+// DELETE /api/campaigns/:id/attachments/:aid
+router.delete("/:id/attachments/:aid", requireAuth, async (req, res) => {
+  const campaign = await prisma.campaign.findFirst({ where: { id: req.params.id, userId: req.user.id } });
+  if (!campaign) return res.status(404).json({ error: "Not found" });
+
+  const att = await prisma.campaignAttachment.findFirst({ where: { id: req.params.aid, campaignId: campaign.id } });
+  if (!att) return res.status(404).json({ error: "Attachment not found" });
+
+  // delete file from disk if exists
+  try {
+    await fs.unlink(path.join(__dirname, "../../uploads", att.storedFilename));
+  } catch (e) { /* ignore */ }
+
+  await prisma.campaignAttachment.delete({ where: { id: att.id } });
+  res.json({ ok: true });
 });
 
 // PATCH /api/campaigns/:id/edit
@@ -222,7 +344,7 @@ router.patch("/:id/edit", requireAuth, async (req, res) => {
 router.post("/:id/send", requireAuth, async (req, res) => {
   const campaign = await prisma.campaign.findFirst({
     where: { id: req.params.id, userId: req.user.id },
-    include: { recipients: true },
+    include: { recipients: true, attachments: true },
   });
   if (!campaign) return res.status(404).json({ error: "Not found" });
   if (campaign.status === "SENDING" || campaign.status === "SENT") {
@@ -270,6 +392,9 @@ router.post("/:id/send", requireAuth, async (req, res) => {
       };
       const personalizedSubject = replaceTemplatePlaceholders(campaign.subject, replacements);
       const personalizedContent = replaceTemplatePlaceholders(campaign.content, replacements);
+      const emailContentHtml = isHtmlContent(personalizedContent)
+        ? personalizedContent
+        : personalizedContent.replace(/\n/g, "<br/>");
 
       const unsub = await prisma.unsubscribeToken.create({
         data: { email: recipient.email, userId: req.user.id, campaignId: campaign.id },
@@ -279,7 +404,12 @@ router.post("/:id/send", requireAuth, async (req, res) => {
         Don't want to receive these emails? <a href="${unsubLink}" style="color:#6366f1;">Unsubscribe</a>
       </div>`;
       const trackingPixel = `<img src="${appUrl}/api/track?rid=${recipient.id}&cid=${campaign.id}&type=open" width="1" height="1" style="display:none" />`;
-      const htmlWithTracking = rewriteLinksForTracking(personalizedContent, recipient.id, campaign.id, appUrl) + trackingPixel + unsubFooter;
+      const htmlWithTracking = rewriteLinksForTracking(emailContentHtml, recipient.id, campaign.id, appUrl) + trackingPixel + unsubFooter;
+      const attachmentFiles = (campaign.attachments || []).map((att) => ({
+        filename: att.filename,
+        path: path.join(__dirname, "../../uploads", att.storedFilename),
+        contentType: att.contentType || undefined,
+      }));
 
       if (useGmail) {
         // Round-robin across active Gmail accounts
@@ -294,6 +424,7 @@ router.post("/:id/send", requireAuth, async (req, res) => {
           subject: personalizedSubject,
           html: htmlWithTracking,
           replyTo: resolvedReplyTo || undefined,
+          attachments: attachmentFiles,
           headers: { "X-ReachX-Recipient-Id": recipient.id, "X-ReachX-Campaign-Id": campaign.id },
         });
       } else {
@@ -303,6 +434,7 @@ router.post("/:id/send", requireAuth, async (req, res) => {
           htmlContent: htmlWithTracking,
           fromName: resolvedFromName,
           replyTo: resolvedReplyTo,
+          attachments: attachmentFiles,
           headers: { "X-ReachX-Recipient-Id": recipient.id, "X-ReachX-Campaign-Id": campaign.id },
         });
       }

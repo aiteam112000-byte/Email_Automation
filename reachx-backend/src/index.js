@@ -17,6 +17,7 @@ const webhookRoutes = require("./routes/webhooks");
 const cronRoutes = require("./routes/cron");
 const pixelRoutes = require("./routes/pixels");
 const gmailRoutes = require("./routes/gmail");
+const uploadRoutes = require("./routes/uploads");
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -42,6 +43,7 @@ app.use("/api/webhooks", webhookRoutes);
 app.use("/api/cron", cronRoutes);
 app.use("/api/pixels", pixelRoutes);
 app.use("/api/gmail", gmailRoutes);
+app.use("/api/uploads", uploadRoutes);
 
 // Health check
 app.get("/health", (req, res) => res.json({ status: "ok" }));

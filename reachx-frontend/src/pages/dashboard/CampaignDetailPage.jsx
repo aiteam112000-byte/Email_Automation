@@ -3,6 +3,19 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import { api } from "../../lib/api";
 
+function isHtmlContent(text) {
+  return /<[^>]+>/.test(String(text));
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 const STATUS_STYLE = {
   DRAFT:   "text-slate-500 bg-slate-100 border-slate-200",
   SENDING: "text-amber-600 bg-amber-50 border-amber-200",
@@ -178,7 +191,9 @@ export default function CampaignDetailPage() {
 
           <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-3">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Email content</p>
-            <div className="text-sm text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-4 max-h-48 overflow-auto font-mono leading-relaxed" dangerouslySetInnerHTML={{ __html: campaign.content }} />
+            <div className="text-sm text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-4 max-h-48 overflow-auto font-mono leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: isHtmlContent(campaign.content) ? campaign.content : escapeHtml(campaign.content).replace(/\n/g, "<br/>") }}
+            />
           </div>
 
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">

@@ -81,6 +81,20 @@ model Campaign {
   user       User        @relation(fields: [userId], references: [id])
   recipients Recipient[]
   events     EmailEvent[]
+  attachments CampaignAttachment[]
+}
+
+model CampaignAttachment {
+  id             String   @id @default(cuid())
+  campaignId     String
+  filename       String
+  storedFilename String
+  url            String
+  contentType    String?
+  size           Int?
+  createdAt      DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 }
 
 model Recipient {

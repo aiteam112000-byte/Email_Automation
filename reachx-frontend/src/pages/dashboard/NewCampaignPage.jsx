@@ -12,6 +12,10 @@ function replaceTemplatePlaceholders(text, data) {
   });
 }
 
+function isHtmlContent(text) {
+  return /<[^>]+>/.test(text);
+}
+
 const STEPS = [{ n: 1, label: "Campaign Info" }, { n: 2, label: "Email Content" }, { n: 3, label: "Recipients" }];
 
 export default function NewCampaignPage() {
@@ -32,6 +36,9 @@ export default function NewCampaignPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
   const [aiGeneratedPrompt, setAiGeneratedPrompt] = useState("");
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [campaignId, setCampaignId] = useState(null);
 
   const parsedEmails = recipientInput.split(/[\n,]+/).map((e) => e.trim()).filter(Boolean);
   const recipientCount = recipientMode === "segment" ? (segmentPreview?.count ?? 0) : parsedEmails.length;
@@ -57,10 +64,69 @@ export default function NewCampaignPage() {
     if (!emails.length) { setError("Add at least one recipient"); return; }
     setLoading(true);
     setError("");
-    const res = await api.post("/api/campaigns", { name, subject, content, recipients: emails });
-    const data = await res.json();
-    if (!res.ok) { setError(data.error ?? "Failed to create campaign"); setLoading(false); }
-    else navigate(`/dashboard/campaigns/${data.id}`);
+    try {
+      if (campaignId) {
+        // update draft campaign
+        await api.patch(`/api/campaigns/${campaignId}/edit`, { name, subject, content });
+        if (emails.length) await api.post(`/api/campaigns/${campaignId}/recipients`, { emails });
+        navigate(`/dashboard/campaigns/${campaignId}`);
+      } else {
+        const res = await api.post("/api/campaigns", { name, subject, content, recipients: emails });
+        const data = await res.json();
+        if (!res.ok) { setError(data.error ?? "Failed to create campaign"); setLoading(false); return; }
+        navigate(`/dashboard/campaigns/${data.id}`);
+      }
+    } catch (err) {
+      setError("Failed to create campaign");
+    }
+  }
+
+  async function uploadAttachment(file) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file, file.name);
+      const token = localStorage.getItem("reachx_token");
+      const base = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+
+      // Ensure a draft campaign exists to attach to
+      let cid = campaignId;
+      if (!cid) {
+        const draftRes = await api.post("/api/campaigns/draft", { name: name || "Draft", subject: subject || "", content: content || "" });
+        const draftData = await draftRes.json();
+        if (!draftRes.ok) throw new Error(draftData.error || "Failed to create draft campaign");
+        cid = draftData.id;
+        setCampaignId(cid);
+      }
+
+      const res = await fetch(`${base}/api/campaigns/${cid}/attachments`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      const item = { url: data.url, filename: data.filename ?? data.originalname, id: data.id };
+      setAttachments((s) => [...s, item]);
+
+    } catch (err) {
+      console.error("Upload failed", err);
+    }
+    setUploading(false);
+  }
+
+  function removeAttachment(idx) {
+    const att = attachments[idx];
+    if (!att) return;
+    if (campaignId && att.id) {
+      // delete from server
+      fetch(`${import.meta.env.VITE_API_URL ?? "http://localhost:4000"}/api/campaigns/${campaignId}/attachments/${att.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${localStorage.getItem("reachx_token")}` },
+      }).catch(() => {});
+    }
+    setAttachments((s) => s.filter((_, i) => i !== idx));
   }
 
   async function generateTemplate() {
@@ -188,14 +254,44 @@ export default function NewCampaignPage() {
                       <p className="text-sm font-medium text-slate-900">Preview</p>
                       <p className="text-xs text-slate-400">John Doe · Acme Corp</p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-[409px] overflow-auto">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-[300px] overflow-auto">
                       {content.trim() ? (
-                        <div className="text-slate-700 prose prose-sm prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: replaceTemplatePlaceholders(content.replace(/\n/g, "<br/>"), { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" }) }} />
+                        isHtmlContent(content) ? (
+                          <div className="text-slate-700 prose prose-sm prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: replaceTemplatePlaceholders(content.replace(/\n/g, "<br/>"), { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" }) }} />
+                        ) : (
+                          <pre className="text-slate-700 max-w-none whitespace-pre-wrap break-words">
+                            {replaceTemplatePlaceholders(content, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}
+                          </pre>
+                        )
                       ) : (
                         <p className="text-sm text-slate-400">Paste your email HTML or plain text here to preview it with example data.</p>
                       )}
                     </div>
+                    <div className="mt-3">
+                      <label className="text-sm font-medium text-slate-700">Attachments</label>
+                      <p className="text-xs text-slate-400">Upload files to include links to them in the email.</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input type="file" onChange={(e) => uploadAttachment(e.target.files?.[0])} className="text-sm" />
+                        <button disabled={uploading} onClick={() => { /* noop: file input auto-uploads */ }} className="px-3 py-1 rounded-lg text-sm border border-slate-200 text-slate-600">Upload</button>
+                      </div>
+                      {attachments.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {attachments.map((a, i) => (
+                            <div key={i} className="flex items-center justify-between bg-white border border-slate-100 rounded-lg px-3 py-2">
+                              <div className="truncate">
+                                <a href={a.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-indigo-700 hover:underline">{a.filename}</a>
+                                <div className="text-xs text-slate-400">{a.url}</div>
+                              </div>
+                              <div>
+                                <button onClick={() => removeAttachment(i)} className="text-xs text-rose-600 px-2 py-1">Remove</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  
                 </div>
               </div>
             </div>
