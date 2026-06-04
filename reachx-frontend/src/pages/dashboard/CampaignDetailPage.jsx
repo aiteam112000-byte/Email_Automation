@@ -194,13 +194,13 @@ export default function CampaignDetailPage() {
                 const hasOpened = (campaign.events ?? []).some((e) => e.recipientId === r.id && e.eventType === "OPENED");
                 const hasBounced = (campaign.events ?? []).some((e) => e.recipientId === r.id && e.eventType === "BOUNCED");
                 return (
-                  <div key={r.id} className="flex items-center justify-between px-6 py-3 hover:bg-slate-50 transition-colors group">
-                    <span className="font-mono text-sm text-slate-600">{r.email}</span>
-                    <div className="flex items-center gap-2">
+                  <div key={r.id} className="flex items-center justify-between px-6 py-3 hover:bg-slate-50 transition-colors">
+                    <span className="font-mono text-sm text-slate-600 flex-1">{r.email}</span>
+                    <div className="flex items-center gap-3 shrink-0">
                       {hasSent && <span className="text-[11px] font-semibold text-sky-600 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">Sent</span>}
                       {hasOpened && <span className="text-[11px] font-semibold text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">Opened</span>}
                       {hasBounced && <span className="text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">Bounced</span>}
-                      <button onClick={() => handleDeleteRecipient(r.id)} className="opacity-0 group-hover:opacity-100 text-xs text-slate-300 hover:text-rose-500 transition-all ml-1">✕</button>
+                      <button onClick={() => handleDeleteRecipient(r.id)} className="text-xs text-slate-400 hover:text-rose-500 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 px-2 py-1 rounded-lg transition-all font-medium">Remove</button>
                     </div>
                   </div>
                 );

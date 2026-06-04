@@ -9,6 +9,10 @@ const { emailQueue } = require("../lib/queue");
 const { getNextGmailTransporter } = require("../lib/gmail");
 
 const router = express.Router();
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_PROJECT = process.env.GEMINI_PROJECT;
+const GEMINI_LOCATION = process.env.GEMINI_LOCATION ?? "us-central1";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
 
 const DISPOSABLE_DOMAINS = new Set([
   "mailinator.com", "guerrillamail.com", "tempmail.com", "throwaway.email",
@@ -43,6 +47,110 @@ function replaceTemplatePlaceholders(text, data) {
     return value != null ? String(value) : "";
   });
 }
+
+function capitalize(text) {
+  return String(text)
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((word) => word[0]?.toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function parseGeminiJsonOutput(output) {
+  const match = String(output).match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+}
+
+async function generateEmailTemplateWithGemini(prompt) {
+  if (!GEMINI_API_KEY || !GEMINI_PROJECT) return generateEmailTemplate(prompt);
+
+  const formattedPrompt = `Create an email subject and body using placeholders {{name}}, {{company}}, and {{email}}. Return only valid JSON with keys "subject" and "content".\n\nPrompt: ${prompt}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta2/projects/${encodeURIComponent(GEMINI_PROJECT)}/locations/${encodeURIComponent(GEMINI_LOCATION)}/models/${encodeURIComponent(GEMINI_MODEL)}:generate?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      prompt: { text: formattedPrompt },
+      temperature: 0.2,
+      max_output_tokens: 512,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini error ${response.status}: ${errorText}`);
+  }
+
+  const json = await response.json();
+  const rawText = json.candidates?.[0]?.content ?? json.output?.[0]?.content ?? json.candidates?.[0]?.output ?? "";
+  const parsed = parseGeminiJsonOutput(rawText);
+
+  if (parsed?.subject && parsed?.content) {
+    return { subject: parsed.subject.trim(), content: parsed.content.trim() };
+  }
+
+  const fallback = generateEmailTemplate(prompt);
+  return { subject: fallback.subject, content: rawText.trim() || fallback.content };
+}
+
+function generateEmailTemplate(prompt) {
+  const normalized = String(prompt || "").trim();
+  const lower = normalized.toLowerCase();
+  let subject = `Quick note for {{name}} at {{company}}`;
+  let opening = `I’m reaching out with an opportunity I think could be helpful for {{company}}.`;
+  let bodyIntro = `Would you be open to a short conversation to see if this is a fit?`;
+
+  if (lower.includes("follow")) {
+    subject = `Following up, {{name}}`;
+    opening = `I wanted to follow up and see if you had a chance to review my last message.`;
+    bodyIntro = `If you're still interested, I’d love to connect and show you how we can help {{company}}.`;
+  } else if (lower.includes("demo")) {
+    subject = `Book a demo for {{company}}`;
+    opening = `I’m reaching out because I think {{company}} would benefit from a quick demo of our solution.`;
+    bodyIntro = `Would a 15-minute walkthrough this week make sense?`;
+  } else if (lower.includes("thank")) {
+    subject = `Thanks, {{name}}`;
+    opening = `Thank you for your time and interest in {{company}}.`;
+    bodyIntro = `Please let me know if you have any questions or want to continue the conversation.`;
+  } else if (lower.includes("cold") || lower.includes("outreach") || lower.includes("prospect")) {
+    subject = `Quick question for {{name}}`;
+    opening = `I’m reaching out because I see {{company}} is doing interesting work in this space.`;
+    bodyIntro = `Do you have time this week for a quick chat?`;
+  } else if (normalized.length > 0) {
+    const summary = capitalize(normalized);
+    subject = `${summary} for {{company}}`;
+    opening = `I wanted to share a quick note about ${summary.toLowerCase()} for {{company}}.`;
+    bodyIntro = `If this is relevant, I’d love to talk through it in a quick call.`;
+  }
+
+  const html = `\n<div style="font-family: Inter, system-ui, sans-serif; color: #111827; line-height: 1.75;">\n  <p style="margin-bottom: 18px;">Hi {{name}},</p>\n  <p style="margin-bottom: 18px;">${opening}</p>\n  <p style="margin-bottom: 18px;">${bodyIntro}</p>\n  <p style="margin-bottom: 18px;">Here are a few things we can help {{company}} with:</p>\n  <ul style="margin-bottom: 18px; padding-left: 20px; color: #475569;">\n    <li style="margin-bottom: 10px;">Faster campaign setup and outreach</li>\n    <li style="margin-bottom: 10px;">Personalized messaging with merge fields</li>\n    <li style="margin-bottom: 10px;">Better delivery and tracking</li>\n  </ul>\n  <p style="margin-bottom: 18px;">Would you be open to a brief call to explore next steps?</p>\n  <p style="margin-bottom: 0;">Best regards,<br/>[Your Name]</p>\n</div>`;
+
+  return { subject, content: html };
+}
+
+router.post("/generate-template", requireAuth, async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt || !String(prompt).trim()) {
+    return res.status(400).json({ error: "Prompt is required" });
+  }
+
+  try {
+    const template = await generateEmailTemplateWithGemini(prompt);
+    res.json(template);
+  } catch (err) {
+    console.error("Gemini template generation failed:", err?.message ?? err);
+    return res.status(500).json({ error: "AI template generation failed" });
+  }
+});
 
 // GET /api/campaigns
 router.get("/", requireAuth, async (req, res) => {

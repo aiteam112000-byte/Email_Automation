@@ -28,6 +28,10 @@ export default function NewCampaignPage() {
   const [segmentLoading, setSegmentLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiGeneratedPrompt, setAiGeneratedPrompt] = useState("");
 
   const parsedEmails = recipientInput.split(/[\n,]+/).map((e) => e.trim()).filter(Boolean);
   const recipientCount = recipientMode === "segment" ? (segmentPreview?.count ?? 0) : parsedEmails.length;
@@ -57,6 +61,30 @@ export default function NewCampaignPage() {
     const data = await res.json();
     if (!res.ok) { setError(data.error ?? "Failed to create campaign"); setLoading(false); }
     else navigate(`/dashboard/campaigns/${data.id}`);
+  }
+
+  async function generateTemplate() {
+    if (!aiPrompt.trim()) {
+      setAiError("Enter a prompt to generate the template");
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError("");
+    try {
+      const res = await api.post("/api/campaigns/generate-template", { prompt: aiPrompt });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiError(data.error ?? "Failed to generate a template");
+      } else {
+        setSubject(data.subject ?? "");
+        setContent(data.content ?? "");
+        setAiGeneratedPrompt(aiPrompt);
+      }
+    } catch (err) {
+      setAiError("Unable to generate a template right now.");
+    }
+    setAiLoading(false);
   }
 
   return (
@@ -113,11 +141,39 @@ export default function NewCampaignPage() {
 
           {step === 2 && (
             <div className="space-y-6">
-              <div><h1 className="text-xl font-bold text-slate-900 tracking-tight">Email Content</h1><p className="text-slate-400 text-sm mt-1">Write your email bodyHTML or plain text.</p></div>
+              <div><h1 className="text-xl font-bold text-slate-900 tracking-tight">Email Content</h1><p className="text-slate-400 text-sm mt-1">Write your email body — HTML or plain text.</p></div>
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
                 <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
                   <span className="text-xs text-slate-400 w-16 shrink-0">Subject:</span>
                   <span className="text-sm text-slate-700 font-medium">{subject}</span>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid gap-3 items-end grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-slate-700">Generate email template</label>
+                      <input
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder="e.g. follow-up after product demo"
+                        className={inputCls}
+                      />
+                      <p className="text-xs text-slate-400">Tell the system the email focus and it will generate subject and body content.</p>
+                      {aiError && <p className="text-sm text-rose-600">{aiError}</p>}
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={generateTemplate}
+                        disabled={aiLoading || !aiPrompt.trim()}
+                        className="w-full md:w-auto px-5 py-3 rounded-2xl bg-blue-900 hover:bg-slate-900 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {aiLoading ? "Generating..." : "Generate template"}
+                      </button>
+                    </div>
+                  </div>
+                  {aiGeneratedPrompt && (
+                    <p className="text-xs text-slate-500">Generated from prompt: <span className="font-medium text-slate-700">{aiGeneratedPrompt}</span></p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-1.5">
