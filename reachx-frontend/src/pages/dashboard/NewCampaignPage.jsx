@@ -148,27 +148,29 @@ export default function NewCampaignPage() {
                   <span className="text-sm text-slate-700 font-medium">{subject}</span>
                 </div>
                 <div className="space-y-4">
-                  <div className="grid gap-3 items-end grid-cols-[minmax(0,1fr)_auto]">
-                    <div className="space-y-1.5">
+                  <div className="grid gap-3 items-start grid-cols-[minmax(0,1fr)_auto]">
+                    <div className="space-y-2 w-full">
                       <label className="text-sm font-medium text-slate-700">Generate email template</label>
-                      <input
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        placeholder="e.g. follow-up after product demo"
-                        className={inputCls}
-                      />
                       <p className="text-xs text-slate-400">Tell the system the email focus and it will generate subject and body content.</p>
+                      <div className="grid gap-3 items-start grid-cols-[minmax(0,1fr)_auto]">
+                        <input
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          placeholder="e.g. follow-up after product demo"
+                          className={inputCls}
+                        />
+                        <div className="flex items-start">
+                          <button
+                            type="button"
+                            onClick={generateTemplate}
+                            disabled={aiLoading || !aiPrompt.trim()}
+                            className="w-auto px-3 py-2 rounded-lg bg-blue-900 hover:bg-blue-800 text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {aiLoading ? "Generating..." : "Generate"}
+                          </button>
+                        </div>
+                      </div>
                       {aiError && <p className="text-sm text-rose-600">{aiError}</p>}
-                    </div>
-                    <div className="flex items-end">
-                      <button
-                        type="button"
-                        onClick={generateTemplate}
-                        disabled={aiLoading || !aiPrompt.trim()}
-                        className="w-full md:w-auto px-5 py-3 rounded-2xl bg-blue-900 hover:bg-slate-900 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {aiLoading ? "Generating..." : "Generate template"}
-                      </button>
                     </div>
                   </div>
                   {aiGeneratedPrompt && (

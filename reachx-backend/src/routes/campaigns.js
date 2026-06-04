@@ -68,10 +68,10 @@ function parseGeminiJsonOutput(output) {
 }
 
 async function generateEmailTemplateWithGemini(prompt) {
-  if (!GEMINI_API_KEY || !GEMINI_PROJECT) return generateEmailTemplate(prompt);
+  if (!GEMINI_API_KEY) return generateEmailTemplate(prompt);
 
   const formattedPrompt = `Create an email subject and body using placeholders {{name}}, {{company}}, and {{email}}. Return only valid JSON with keys "subject" and "content".\n\nPrompt: ${prompt}`;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta2/projects/${encodeURIComponent(GEMINI_PROJECT)}/locations/${encodeURIComponent(GEMINI_LOCATION)}/models/${encodeURIComponent(GEMINI_MODEL)}:generate?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -79,9 +79,19 @@ async function generateEmailTemplateWithGemini(prompt) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      prompt: { text: formattedPrompt },
-      temperature: 0.2,
-      max_output_tokens: 512,
+      contents: [
+        {
+          parts: [
+            {
+              text: formattedPrompt,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 512,
+      },
     }),
   });
 
@@ -91,7 +101,7 @@ async function generateEmailTemplateWithGemini(prompt) {
   }
 
   const json = await response.json();
-  const rawText = json.candidates?.[0]?.content ?? json.output?.[0]?.content ?? json.candidates?.[0]?.output ?? "";
+  const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   const parsed = parseGeminiJsonOutput(rawText);
 
   if (parsed?.subject && parsed?.content) {
