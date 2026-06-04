@@ -25,6 +25,14 @@ export default function LoginPage() {
   useEffect(() => {
     const token = searchParams.get("token");
     const userParam = searchParams.get("user");
+    const errorParam = searchParams.get("error");
+    const detailsParam = searchParams.get("details");
+
+    if (errorParam) {
+      setError(`OAuth failed: ${decodeURIComponent(detailsParam || errorParam)}`);
+      return;
+    }
+
     if (!token) return;
 
     setToken(token);

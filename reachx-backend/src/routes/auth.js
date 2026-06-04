@@ -3,7 +3,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { prisma } = require("../lib/prisma");
 const { checkRateLimit } = require("../lib/rateLimit");
-const { getAuthUrl } = require("../lib/gmail");
+const { getAuthUrl, exchangeCodeForTokens } = require("../lib/gmail");
+const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -18,6 +19,56 @@ router.get("/google-url", (req, res) => {
 
   const url = getAuthUrl(clientId, clientSecret) + `&state=${state}`;
   res.json({ url });
+});
+
+// GET /api/auth/callback
+router.get("/callback", async (req, res) => {
+  const { code, state, error, error_description } = req.query;
+  
+  console.log("[auth callback] Received:", { code: !!code, state: !!state, error, error_description });
+
+  if (error) {
+    console.error("[auth callback] Google error:", error, error_description);
+    return res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/login?error=${error}`);
+  }
+
+  if (!code || !state) {
+    console.error("[auth callback] Missing code or state");
+    return res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/login?error=missing_params`);
+  }
+
+  try {
+    console.log("[auth callback] Parsing state...");
+    const stateObj = JSON.parse(Buffer.from(state, "base64url").toString());
+    const { clientId, clientSecret } = stateObj;
+    
+    console.log("[auth callback] State parsed, exchanging code for tokens...");
+    const { email, name, tokens } = await exchangeCodeForTokens(code, clientId, clientSecret);
+    console.log("[auth callback] Got email:", email);
+
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      console.log("[auth callback] Creating new user:", email);
+      user = await prisma.user.create({ data: { email, name } });
+    } else {
+      console.log("[auth callback] Found existing user:", email);
+    }
+
+    const tempToken = jwt.sign(
+      { id: user.id, email: user.email, isTemp: true },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const encodedUser = Buffer.from(JSON.stringify({ id: user.id, email: user.email, name: user.name })).toString("base64url");
+    const redirectUrl = `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/set-password?token=${encodeURIComponent(tempToken)}&user=${encodeURIComponent(encodedUser)}`;
+    console.log("[auth callback] Redirecting to:", redirectUrl.split("?")[0]);
+    return res.redirect(redirectUrl);
+  } catch (err) {
+    console.error("[auth callback] Error:", err?.message, err?.stack);
+    return res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/login?error=auth_failed&details=${encodeURIComponent(err?.message || "Unknown error")}`);
+  }
 });
 
 // POST /api/auth/register
@@ -68,6 +119,29 @@ router.post("/login", async (req, res) => {
 
   const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
   return res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+});
+
+// POST /api/auth/set-password
+router.post("/set-password", requireAuth, async (req, res) => {
+  const { password } = req.body;
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters" });
+  }
+
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const hashed = await bcrypt.hash(password, 12);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: hashed },
+  });
+
+  const token = jwt.sign({ id: userId, email: req.user.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true } });
+  return res.json({ token, user });
 });
 
 module.exports = router;
