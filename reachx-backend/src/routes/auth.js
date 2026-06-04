@@ -3,8 +3,22 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { prisma } = require("../lib/prisma");
 const { checkRateLimit } = require("../lib/rateLimit");
+const { getAuthUrl } = require("../lib/gmail");
 
 const router = express.Router();
+
+// GET /api/auth/google-url
+router.get("/google-url", (req, res) => {
+  const clientId = req.query.clientId || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = req.query.clientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+  const state = Buffer.from(
+    JSON.stringify({ flow: "login", clientId, clientSecret })
+  ).toString("base64url");
+
+  const url = getAuthUrl(clientId, clientSecret) + `&state=${state}`;
+  res.json({ url });
+});
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {

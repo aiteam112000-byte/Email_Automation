@@ -117,35 +117,9 @@ export default function SettingsPage() {
 
               {/* Gmail Accounts */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Gmail Sending Accounts</p>
-                    <p className="text-xs text-slate-400 mt-1">Connected accounts are used round-robin to send campaigns.</p>
-                  </div>
-                  <div className="flex gap-2 flex-wrap justify-end">
-                    <button
-                      onClick={() => handleConnectGmail(
-                        import.meta.env.VITE_GMAIL_CLIENT_ID_1,
-                        import.meta.env.VITE_GMAIL_CLIENT_SECRET_1
-                      )}
-                      disabled={connecting}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all"
-                    >
-                      <GmailIcon />
-                      {connecting ? "..." : "Connect veeekamble@gmail.com"}
-                    </button>
-                    <button
-                      onClick={() => handleConnectGmail(
-                        import.meta.env.VITE_GMAIL_CLIENT_ID_2,
-                        import.meta.env.VITE_GMAIL_CLIENT_SECRET_2
-                      )}
-                      disabled={connecting}
-                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-all"
-                    >
-                      <GmailIcon />
-                      {connecting ? "..." : "Connect kamblevidhishaa@gmail.com"}
-                    </button>
-                  </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Gmail Sending Accounts</p>
+                  <p className="text-xs text-slate-400 mt-1">Connected accounts are used round-robin to send campaigns.</p>
                 </div>
 
                 {gmailMsg && (
