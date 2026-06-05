@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const { prisma } = require("../lib/prisma");
 const { checkRateLimit } = require("../lib/rateLimit");
 const { getAuthUrl, exchangeCodeForTokens } = require("../lib/gmail");
+const { getAuthUrl: getZohoAuthUrl, exchangeCodeForTokens: exchangeZohoCodeForTokens } = require("../lib/zoho");
 const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
@@ -18,6 +19,18 @@ router.get("/google-url", (req, res) => {
   ).toString("base64url");
 
   const url = getAuthUrl(clientId, clientSecret) + `&state=${state}`;
+  res.json({ url });
+});
+
+router.get("/zoho-url", (req, res) => {
+  const clientId = req.query.clientId || process.env.ZOHO_CLIENT_ID;
+  const clientSecret = req.query.clientSecret || process.env.ZOHO_CLIENT_SECRET;
+
+  const state = Buffer.from(
+    JSON.stringify({ flow: "login", clientId, clientSecret })
+  ).toString("base64url");
+
+  const url = getZohoAuthUrl(clientId, clientSecret, process.env.ZOHO_LOGIN_REDIRECT_URI) + `&state=${state}`;
   res.json({ url });
 });
 
@@ -51,9 +64,34 @@ router.get("/callback", async (req, res) => {
     if (!user) {
       console.log("[auth callback] Creating new user:", email);
       user = await prisma.user.create({ data: { email, name } });
+    } else if (!user.name && name) {
+      console.log("[auth callback] Updating missing user name for:", email);
+      user = await prisma.user.update({ where: { id: user.id }, data: { name } });
     } else {
       console.log("[auth callback] Found existing user:", email);
     }
+
+    await prisma.gmailAccount.upsert({
+      where: { userId_email: { userId: user.id, email } },
+      create: {
+        userId: user.id,
+        email,
+        refreshToken: tokens.refresh_token,
+        accessToken: tokens.access_token ?? null,
+        tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        clientId: clientId ?? null,
+        clientSecret: clientSecret ?? null,
+        isActive: true,
+      },
+      update: {
+        refreshToken: tokens.refresh_token ?? undefined,
+        accessToken: tokens.access_token ?? null,
+        tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        clientId: clientId ?? null,
+        clientSecret: clientSecret ?? null,
+        isActive: true,
+      },
+    });
 
     const tempToken = jwt.sign(
       { id: user.id, email: user.email, isTemp: true },
@@ -67,6 +105,69 @@ router.get("/callback", async (req, res) => {
     return res.redirect(redirectUrl);
   } catch (err) {
     console.error("[auth callback] Error:", err?.message, err?.stack);
+    return res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/login?error=auth_failed&details=${encodeURIComponent(err?.message || "Unknown error")}`);
+  }
+});
+
+router.get("/zoho-callback", async (req, res) => {
+  const { code, state, error, error_description } = req.query;
+
+  if (error) {
+    console.error("[auth callback] Zoho error:", error, error_description);
+    return res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/login?error=${error}`);
+  }
+
+  if (!code || !state) {
+    console.error("[auth callback] Zoho missing code or state");
+    return res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/login?error=missing_params`);
+  }
+
+  try {
+    const stateObj = JSON.parse(Buffer.from(state, "base64url").toString());
+    const { clientId, clientSecret } = stateObj;
+    const { email, name, tokens, accountId } = await exchangeZohoCodeForTokens(code, clientId, clientSecret, process.env.ZOHO_LOGIN_REDIRECT_URI);
+
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      user = await prisma.user.create({ data: { email, name } });
+    }
+
+    await prisma.zohoAccount.upsert({
+      where: { userId_email: { userId: user.id, email } },
+      create: {
+        userId: user.id,
+        email,
+        refreshToken: tokens.refresh_token,
+        accessToken: tokens.access_token ?? null,
+        tokenExpiry: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null,
+        clientId: clientId ?? null,
+        clientSecret: clientSecret ?? null,
+        accountId: accountId ?? null,
+        isActive: true,
+      },
+      update: {
+        refreshToken: tokens.refresh_token ?? undefined,
+        accessToken: tokens.access_token ?? null,
+        tokenExpiry: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null,
+        clientId: clientId ?? null,
+        clientSecret: clientSecret ?? null,
+        accountId: accountId ?? undefined,
+        isActive: true,
+      },
+    });
+
+    const tempToken = jwt.sign(
+      { id: user.id, email: user.email, isTemp: true },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const encodedUser = Buffer.from(JSON.stringify({ id: user.id, email: user.email, name: user.name })).toString("base64url");
+    const redirectUrl = `${process.env.FRONTEND_URL ?? "http://localhost:3000"}/set-password?token=${encodeURIComponent(tempToken)}&user=${encodeURIComponent(encodedUser)}`;
+    return res.redirect(redirectUrl);
+  } catch (err) {
+    console.error("[auth callback] Zoho Error:", err?.message, err?.stack);
     return res.redirect(`${process.env.FRONTEND_URL ?? "http://localhost:3000"}/login?error=auth_failed&details=${encodeURIComponent(err?.message || "Unknown error")}`);
   }
 });

@@ -17,6 +17,7 @@ const webhookRoutes = require("./routes/webhooks");
 const cronRoutes = require("./routes/cron");
 const pixelRoutes = require("./routes/pixels");
 const gmailRoutes = require("./routes/gmail");
+const zohoRoutes = require("./routes/zoho");
 const uploadRoutes = require("./routes/uploads");
 
 const app = express();
@@ -43,6 +44,7 @@ app.use("/api/webhooks", webhookRoutes);
 app.use("/api/cron", cronRoutes);
 app.use("/api/pixels", pixelRoutes);
 app.use("/api/gmail", gmailRoutes);
+app.use("/api/zoho", zohoRoutes);
 app.use("/api/uploads", uploadRoutes);
 
 // Health check

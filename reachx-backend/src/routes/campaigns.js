@@ -370,14 +370,19 @@ router.post("/:id/send", requireAuth, async (req, res) => {
   });
   const contactByEmail = new Map(contactRecords.map((contact) => [contact.email.toLowerCase(), contact]));
 
-  // Check if user has active Gmail accounts
+  // Check if user has active Gmail or Zoho accounts
   const gmailAccounts = await prisma.gmailAccount.findMany({
     where: { userId: req.user.id, isActive: true },
   });
-  const useGmail = gmailAccounts.length > 0;
+  const zohoAccounts = await prisma.zohoAccount.findMany({
+    where: { userId: req.user.id, isActive: true },
+  });
+  const useZoho = zohoAccounts.length > 0;
+  const useGmail = !useZoho && gmailAccounts.length > 0;
 
   let successCount = 0;
   let gmailRRIndex = 0;
+  let zohoRRIndex = 0;
 
   for (const recipient of campaign.recipients) {
     if (unsubscribedEmails.has(recipient.email.toLowerCase())) continue;
@@ -426,6 +431,17 @@ router.post("/:id/send", requireAuth, async (req, res) => {
           replyTo: resolvedReplyTo || undefined,
           attachments: attachmentFiles,
           headers: { "X-ReachX-Recipient-Id": recipient.id, "X-ReachX-Campaign-Id": campaign.id },
+        });
+      } else if (useZoho) {
+        // Round-robin across active Zoho accounts when no Gmail account is available
+        const account = zohoAccounts[zohoRRIndex % zohoAccounts.length];
+        zohoRRIndex++;
+        const { sendViaZohoMailAPI } = require("../lib/zoho");
+        await sendViaZohoMailAPI(account, {
+          to: recipient.email,
+          subject: personalizedSubject,
+          html: htmlWithTracking,
+          replyTo: resolvedReplyTo || undefined,
         });
       } else {
         await sendEmail({

@@ -22,6 +22,7 @@ model User {
   segments      Segment[]
   pixelAssets   PixelAsset[]
   gmailAccounts GmailAccount[]
+  zohoAccounts  ZohoAccount[]
 }
 
 model Contact {
@@ -164,6 +165,24 @@ model GmailAccount {
   tokenExpiry  DateTime?
   clientId     String?
   clientSecret String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, email])
+}
+
+model ZohoAccount {
+  id           String    @id @default(cuid())
+  userId       String
+  email        String
+  refreshToken String
+  accessToken  String?
+  tokenExpiry  DateTime?
+  clientId     String?
+  clientSecret String?
+  accountId    String?
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
 

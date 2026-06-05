@@ -62,6 +62,15 @@ export default function LoginPage() {
     window.location.href = data.url;
   }
 
+  async function handleZohoSignIn() {
+    setLoading(true);
+    setError("");
+    const res = await api.get("/api/auth/zoho-url");
+    const data = await res.json();
+    if (!res.ok) { setError(data.error ?? "Unable to connect with Zoho"); setLoading(false); return; }
+    window.location.href = data.url;
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4 py-6">
       <div className="w-full max-w-md bg-white rounded-[32px] border border-slate-200/80 shadow-[0_35px_65px_rgba(15,23,42,0.12)] overflow-hidden">
@@ -102,6 +111,10 @@ export default function LoginPage() {
           <button type="button" onClick={handleGoogleSignIn} disabled={loading} className="w-full border border-slate-200 rounded-2xl py-3 text-sm font-medium text-slate-700 inline-flex items-center justify-center gap-2 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed">
             <span className="text-base">G</span>
             Continue with Google
+          </button>
+          <button type="button" onClick={handleZohoSignIn} disabled={loading} className="w-full border border-slate-200 rounded-2xl py-3 text-sm font-medium text-slate-700 inline-flex items-center justify-center gap-2 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed mt-3">
+            <span className="text-base">Z</span>
+            Continue with Zoho
           </button>
           <p className="text-center text-sm text-slate-500 mt-6">
             Don't have an account?{' '}
