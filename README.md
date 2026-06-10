@@ -4,236 +4,231 @@ ReachX is a full-stack email marketing platform built for modern GTM teams. It c
 
 ---
 
-## What We Offer
+#+ ReachX — Email Marketing Platform
 
-### Multi-Provider OAuth Sending
-Connect multiple Gmail and/or Zoho accounts via OAuth2. ReachX automatically prefers Zoho accounts when available, then falls back to Gmail. Round-robin sends across all active accounts to maximize deliverability without hitting provider limits. No SMTP configuration required.
+ReachX is a full-stack email marketing and automation platform that combines provider-managed sending (Gmail & Zoho), contact validation, per-recipient tracking (pixels & link rewrite), visual workflow automation, and campaign analytics.
 
-### Campaign Engine
-Create email campaigns with a subject line, HTML content, and a recipient list. Send immediately or schedule for a future date. Track delivery, opens, clicks, bounces, and unsubscribes per campaign.
+This README documents developer setup, architecture, features, runtime behavior, and troubleshooting pointers so you can run and extend ReachX locally or deploy it to production.
 
-### Email Validation
-Validate email addresses before sending—format checks, MX record lookups, and mailbox existence verification. Bulk validate your full contact list in one go to protect your sender reputation.
+## Contents
 
-### Pixel Folder
-Manage tracking pixels and image assets in a central folder. Create named tracking pixels, upload images, and insert them into campaigns with a single click. See per-recipient open stats per pixel asset—know exactly who opened, when, and from which campaign.
+- Project overview and features
+- Architecture & tech stack
+- Quick start (dev)
+- Environment variables
+- Database & migrations
+- Running workers and scheduler
+- API reference (high level)
+- OAuth setup (Gmail & Zoho)
+- Deployment notes and troubleshooting
+- Contributing
 
-### Open & Click Tracking
-Every email sent includes a per-recipient tracking pixel and rewritten click links. Opens and clicks are recorded individually per recipient, giving you real engagement data—not campaign-level estimates.
+## Key Features
 
-### Visual Workflow Builder
-An n8n-style drag-and-drop canvas for building email automation sequences. Add steps (Trigger, Send Email, Wait, If/Else, Update Tag, Remove Tag, End), connect them with arrows, and configure each step in a side panel. If/Else nodes support Yes/No branch routing.
+- Multi-provider sending: Gmail (OAuth) and Zoho (OAuth) with provider priority and round-robin per-account sending.
+- Campaign engine: create, draft, schedule, attach files, personalize templates with `{{name}}`, `{{company}}`, `{{email}}` placeholders.
+- Recipient-level tracking: unique pixel for opens, rewritten links for click tracking, unsubscribe handling, and per-recipient events.
+- Email validation: quick format + MX checks and configurable validation flow before send.
+- Visual workflow builder: create workflows (trigger, send, wait, conditionals, tag operations) and enroll recipients into follow-ups.
+- Background processing: BullMQ queues using Redis for email and workflow processing; separate workers for scalable processing.
+- Uploads & pixel assets: upload and manage images and attachments; assets served from `/uploads`.
 
-### Contacts & Segments
-Import contacts via CSV or add manually. Tag contacts, create dynamic segments by tag or status, and filter your list before sending. Bulk delete, export to CSV, and search across your full contact database.
+## Architecture & Tech Stack
 
-### Analytics
-Per-campaign analytics including sent count, open rate, click rate, bounce rate, and unsubscribe count. Dashboard overview with aggregate stats across all campaigns.
+- Frontend: React + Vite, Tailwind CSS. `reachx-frontend` contains the UI (auth, campaign builder, workflow canvas, dashboard).
+- Backend: Node.js + Express in `reachx-backend` exposing a JSON API.
+- DB: PostgreSQL (accessed via Prisma ORM).
+- Queues: BullMQ with Redis for email and workflow processing.
+- Auth: JWT-based API auth; OAuth flows for Gmail and Zoho account connections.
+- Email sending: Nodemailer for Gmail (using OAuth tokens) and Zoho Mail REST API for Zoho sends.
 
-### Scheduled Campaigns
-Schedule campaigns to send at a future date and time. A built-in scheduler checks every 60 seconds and fires scheduled campaigns automatically.
+## Repo layout (short)
 
-### Follow-up Workflows
-Attach a workflow to any campaign. After sending, contacts are automatically enrolled into the linked workflow based on a trigger (all recipients, opened, or clicked).
+- `reachx-backend/` — Express API, Prisma schema, workers, routes, libs
+- `reachx-frontend/` — Vite React app (dashboard, auth, workflow canvas)
 
-### Workflow Automation Engine
-Background BullMQ workers process workflow enrollments with Redis. Supports wait steps (minutes, hours, days), conditional branching, tag updates, and email sends—all non-blocking.
+## Quick start (development)
 
----
-
-## Tech Stack
-
-### Frontend (`reachx-frontend`)
-- React 18 + Vite
-- React Router v6
-- Tailwind CSS
-- @xyflow/react (workflow canvas)
-- Vanilla CSS (landing page animations)
-
-### Backend (`reachx-backend`)
-- Node.js + Express
-- Prisma ORM + PostgreSQL
-- BullMQ + Redis (email & workflow queues)
-- Nodemailer + Gmail OAuth2 (Gmail sending)
-- Zoho Mail REST API + OAuth2 (Zoho sending)
-- googleapis (Google OAuth2 token management)
-- JWT authentication
-- Multer (image uploads)
-
----
-
-## Project Structure
-
-```
-Email_Automation/
-├── reachx-frontend/        # Vite + React frontend
-│   ├── src/
-│   │   ├── components/     # Sidebar
-│   │   ├── pages/
-│   │   │   ├── dashboard/  # All dashboard pages
-│   │   │   ├── LandingPage.jsx
-│   │   │   ├── LoginPage.jsx
-│   │   │   └── RegisterPage.jsx
-│   │   └── lib/            # API client, auth helpers
-│   └── .env                # VITE_API_URL, Gmail/Zoho OAuth credentials
-│
-└── reachx-backend/         # Express API server
-    ├── src/
-    │   ├── routes/         # campaigns, contacts, pixels, gmail, zoho, workflows, track, etc.
-    │   ├── lib/            # smtp, gmail, zoho, prisma, rewriteLinks, workflowQueue
-    │   ├── workers/        # emailWorker, workflowWorker
-    │   └── middleware/     # requireAuth (JWT)
-    ├── prisma/
-    │   └── schema.prisma   # Full DB schema including GmailAccount & ZohoAccount
-    ├── uploads/            # Uploaded images served as static files
-    └── .env                # DATABASE_URL, GOOGLE/ZOHO_CLIENT_ID/SECRET, JWT_SECRET, etc.
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-- Node.js >= 20
+Prerequisites
+- Node.js 20+ (LTS recommended)
 - PostgreSQL
 - Redis
 
-### 1. Clone and install
+Install
+
+1. Install dependencies for backend and frontend
 
 ```bash
-# Install backend dependencies
 cd reachx-backend
 npm install
 
-# Install frontend dependencies
 cd ../reachx-frontend
 npm install
 ```
 
-### 2. Configure environment
+2. Copy environment templates and set values
 
-**`reachx-backend/.env`**
-```env
-DATABASE_URL="postgresql://user:password@localhost:5432/reachx"
-JWT_SECRET="your-secret"
-APP_URL="http://localhost:4000"
-FRONTEND_URL="http://localhost:3000"
-REDIS_URL="redis://localhost:6379"
+- Create `reachx-backend/.env` (see Environment variables section below)
+- Create `reachx-frontend/.env` and set `VITE_API_URL` (e.g. `http://localhost:4000`)
 
-# Gmail OAuth
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-GOOGLE_REDIRECT_URI="http://localhost:4000/api/gmail/callback"
-
-# Zoho OAuth (India region example)
-ZOHO_AUTH_DOMAIN="https://accounts.zoho.in"
-ZOHO_CLIENT_ID="your-zoho-client-id"
-ZOHO_CLIENT_SECRET="your-zoho-client-secret"
-ZOHO_LOGIN_REDIRECT_URI="http://localhost:4000/api/auth/zoho-callback"
-ZOHO_REDIRECT_URI="http://localhost:4000/api/zoho/callback"
-
-# Gemini API (for AI-powered email templates)
-GEMINI_API_KEY="your-gemini-api-key"
-GEMINI_PROJECT="your-gemini-project"
-```
-
-**`reachx-frontend/.env`**
-```env
-VITE_API_URL=http://localhost:4000
-```
-
-### 3. Run database migrations
+3. Initialize database and apply Prisma migrations
 
 ```bash
 cd reachx-backend
-npx prisma db push
+npx prisma migrate dev   # during development
+# or: npx prisma migrate deploy  # in CI/prod
 ```
 
-### 4. Start the servers
+4. Start services
+
+Backend (dev):
 
 ```bash
-# Backend
 cd reachx-backend
 npm run dev
+```
 
-# Frontend (in another terminal)
+Workers (run in separate terminals):
+
+```bash
+cd reachx-backend
+node src/workers/emailWorker.js
+node src/workers/workflowWorker.js
+```
+
+Frontend (dev):
+
+```bash
 cd reachx-frontend
 npm run dev
 ```
 
-The app will be available at `http://localhost:3000`.
+Open `http://localhost:3000` to view the frontend.
+
+## Environment variables
+
+Populate `reachx-backend/.env` with at least the following keys (examples):
+
+- `DATABASE_URL` — postgres connection string
+- `JWT_SECRET` — secret for signing user JWTs
+- `APP_URL` — public/back-end base URL (used for asset links)
+- `FRONTEND_URL` — frontend base URL
+- `PORT` — backend port (defaults to 4000)
+- `REDIS_URL` — redis connection
+
+OAuth / provider variables:
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+- `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REDIRECT_URI`, `ZOHO_AUTH_DOMAIN`
+
+Optional / integrations:
+- `GEMINI_API_KEY`, `GEMINI_PROJECT` — for AI email template generation
+
+Security notes: keep these values out of source control. Use platform secrets in production.
+
+## Database & Prisma
+
+- Schema is in `reachx-backend/prisma/schema.prisma`. Models include `User`, `Campaign`, `Recipient`, `Event`, `Contact`, `GmailAccount`, `ZohoAccount`, `Workflow`, etc.
+- Use `npx prisma migrate dev` during active schema development and `npx prisma migrate deploy` in CI/prod.
+- For quick dev sync you can use `npx prisma db push` (note: this skips some migration checks).
+
+## Background Workers & Scheduler
+
+- Email sends and workflow execution are processed by worker scripts in `reachx-backend/src/workers/`.
+- Queue names and processors are defined in `reachx-backend/src/lib/queue.js` (email queue) and `workflowQueue.js`.
+- To run workers locally, start them with Node directly or use a process manager (PM2) in production.
+- The API server includes a lightweight scheduler that POSTs to `/api/cron/send-scheduled` every 60 seconds when enabled via `ENABLE_SCHEDULER=true` and a `CRON_SECRET` configured. Alternatively run a cron job or job runner in production.
+
+## Sending behavior and provider selection
+
+- When sending a campaign the backend checks for active Zoho accounts for the user. If any are available, Zoho is preferred. Otherwise, active Gmail accounts are used.
+- Sends are round-robined across active accounts for the selected provider to distribute load and avoid per-account rate limits.
+- Attachments uploaded to campaigns are stored in the `uploads/` folder and referenced via `APP_URL`.
+
+## API (high-level)
+
+The backend exposes JSON REST endpoints under `/api/*`. Key groups:
+
+- `POST /api/auth/*` — register, login, OAuth helper endpoints
+- `GET/POST /api/campaigns` — create, list, draft, send, schedule, attach files
+- `GET/POST /api/contacts` — import, list, manage contacts
+- `GET/POST /api/pixels` — upload and list pixel/image assets
+- `GET /api/track` — tracking pixel and click redirects (records opens/clicks)
+- `GET/POST /api/gmail` and `/api/zoho` — provider connect, callback, list accounts
+- `GET/POST /api/workflows` — workflow CRUD and step saves
+
+For developer exploration, see route implementations in `reachx-backend/src/routes/`.
+
+## OAuth: Gmail & Zoho setup (dev)
+
+Gmail (Google Cloud Console):
+
+1. Create a Google Cloud project and enable Gmail API.
+2. Create OAuth 2.0 credentials (web application).
+3. Add `http://localhost:4000/api/gmail/callback` as an authorized redirect URI.
+4. Put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` into `reachx-backend/.env`.
+
+Zoho (Zoho API Console):
+
+1. Create a Self Client or Server-based client in Zoho API Console for your region.
+2. Add `http://localhost:4000/api/zoho/callback` and `http://localhost:4000/api/auth/zoho-callback` as redirect URIs.
+3. Set `ZOHO_AUTH_DOMAIN` to your region (`https://accounts.zoho.in`, `https://accounts.zoho.com`, etc.).
+
+See `reachx-frontend` UI under Settings → Connect for the in-app flows.
+
+## Deployment notes
+
+- Use environment variables to store secrets and configure the platform (DATABASE_URL, REDIS_URL, JWT_SECRET, OAuth client secrets).
+- Run workers separately from web processes for reliability and horizontal scaling.
+- Use a managed Postgres and Redis in production; ensure network and auth are locked down.
+- Consider using PM2, systemd, or container orchestration (Docker Compose / Kubernetes) to run the backend + workers.
+
+Minimal Docker Compose (example)
+
+```yaml
+version: '3.8'
+services:
+    db:
+        image: postgres:15
+        environment:
+            POSTGRES_DB: reachx
+            POSTGRES_USER: reachx
+            POSTGRES_PASSWORD: reachx
+    redis:
+        image: redis:7
+    backend:
+        build: ./reachx-backend
+        env_file: ./reachx-backend/.env
+        depends_on: [db, redis]
+    frontend:
+        build: ./reachx-frontend
+        env_file: ./reachx-frontend/.env
+        ports: ["3000:3000"]
+```
+
+## Troubleshooting & Tips
+
+- Health check: `GET /health` returns `{ status: "ok" }` when the server is running.
+- If scheduled campaigns aren't processed, ensure `ENABLE_SCHEDULER=true` or run an external cron to POST `/api/cron/send-scheduled` with the `x-cron-secret` header.
+- Common issues:
+    - OAuth redirect URI mismatch: verify values in provider console match `.env` values
+    - Prisma migration errors: use `npx prisma migrate status` to inspect migration state
+    - Emails failing: check worker logs and provider account token expiry; refresh OAuth tokens as needed
+
+## Developer notes
+
+- API route implementations live in `reachx-backend/src/routes/` — start with `auth.js`, `campaigns.js`, and `gmail.js` to understand connect/send flow.
+- Mail sending logic is in `reachx-backend/src/lib/gmail.js` and `src/lib/smtp.js`. Link rewriting and tracking lives in `src/lib/rewriteLinks.js` and `src/routes/track.js`.
+
+## Contributing
+
+- Fork, create a feature branch, run tests (if added), and open a PR with a clear description of changes.
+- Keep secrets out of commits; use `.env` or CI secrets.
 
 ---
 
-## Key API Endpoints
+If you'd like, I can also:
+- add a `docker-compose.yml` and `Dockerfile` stubs for backend/frontend,
+- add a `make`/`npm` script for running workers locally,
+- or generate a short CONTRIBUTING.md outlining PR workflow.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Register a new account |
-| POST | `/api/auth/login` | Login and receive JWT |
-| GET | `/api/auth/google-url` | Get Google OAuth URL for Gmail login |
-| GET | `/api/auth/zoho-url` | Get Zoho OAuth URL for Zoho login |
-| GET | `/api/auth/callback` | Gmail OAuth callback (login flow) |
-| GET | `/api/auth/zoho-callback` | Zoho OAuth callback (login flow) |
-| GET | `/api/campaigns` | List all campaigns |
-| POST | `/api/campaigns/:id/send` | Send a campaign (auto-selects Zoho or Gmail) |
-| POST | `/api/campaigns/:id/schedule` | Schedule a campaign |
-| GET | `/api/contacts` | List contacts |
-| POST | `/api/contacts/import` | Bulk import contacts from CSV |
-| GET | `/api/pixels` | List pixel folder assets |
-| POST | `/api/pixels/upload` | Upload an image asset |
-| GET | `/api/gmail/auth-url` | Get Google OAuth URL for Gmail connect |
-| GET | `/api/gmail/callback` | OAuth callback—saves Gmail account |
-| GET | `/api/gmail/accounts` | List connected Gmail accounts |
-| PATCH | `/api/gmail/accounts/:id` | Toggle Gmail account active/inactive |
-| DELETE | `/api/gmail/accounts/:id` | Disconnect a Gmail account |
-| GET | `/api/zoho/auth-url` | Get Zoho OAuth URL for Zoho connect |
-| GET | `/api/zoho/callback` | OAuth callback—saves Zoho account |
-| GET | `/api/zoho/accounts` | List connected Zoho accounts |
-| PATCH | `/api/zoho/accounts/:id` | Toggle Zoho account active/inactive |
-| DELETE | `/api/zoho/accounts/:id` | Disconnect a Zoho account |
-| GET | `/api/track` | Tracking pixel endpoint (opens + clicks) |
-| GET | `/api/workflows` | List workflows |
-| PUT | `/api/workflows/:id/steps` | Save workflow steps |
-| GET | `/api/stats` | Dashboard aggregate stats |
-
----
-
-## Gmail OAuth Setup
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a project → Enable **Gmail API**
-3. Create OAuth 2.0 credentials (Web application type)
-4. Add `http://localhost:4000/api/gmail/callback` as an authorized redirect URI
-5. Add test users in OAuth consent screen
-6. Copy Client ID and Secret to `.env`
-7. In the app: Settings → Connect Gmail → authorize each account, OR Login → Continue with Gmail
-
----
-
-## Zoho OAuth Setup
-
-1. Go to [Zoho API Console](https://api-console.zoho.in/) (India region) or [api-console.zoho.com](https://api-console.zoho.com) (US region)
-2. Create a new Self Client application
-3. Add `http://localhost:4000/api/auth/zoho-callback` and `http://localhost:4000/api/zoho/callback` as redirect URIs
-4. Copy Client ID and Secret to `.env`
-5. Set `ZOHO_AUTH_DOMAIN` to match your region (e.g., `https://accounts.zoho.in` for India)
-6. In the app: Login → Continue with Zoho (auto-saves account), OR Settings → Connect Zoho → authorize
-
----
-
-## Send Provider Priority
-
-- **Zoho is preferred** when at least one active Zoho account exists
-- **Gmail is used** only if no active Zoho accounts are available
-- Sends are **round-robined** across all active accounts of the chosen provider
-
-To control which provider is used:
-- **Use Zoho**: Ensure at least one Zoho account is connected and active in Settings
-- **Use Gmail only**: Disconnect all Zoho accounts or toggle them inactive
-
----
-
-## License
-
-MIT
+License: MIT
