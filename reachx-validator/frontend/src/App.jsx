@@ -42,10 +42,21 @@ function downloadCSV(results, filename) {
   a.click();
 }
 
+function parseCSVEmails(text) {
+  // Flatten all cells from CSV, pick values that look like emails
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return text
+    .split(/\r?\n/)
+    .flatMap(line => line.split(",").map(cell => cell.replace(/^"|"$/g, "").trim()))
+    .filter(v => emailRe.test(v));
+}
+
 export default function App() {
   const [tab, setTab] = useState("bulk");
   const [input, setInput] = useState("");
   const [singleEmail, setSingleEmail] = useState("");
+  const [csvFileName, setCsvFileName] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const [results, setResults] = useState([]);
   const [singleResult, setSingleResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -75,6 +86,18 @@ export default function App() {
     const updated = [entry, ...history].slice(0, 20);
     setHistory(updated);
     localStorage.setItem("vx_history", JSON.stringify(updated));
+  }
+
+  function handleCSVFile(file) {
+    if (!file) return;
+    if (!file.name.endsWith(".csv")) return;
+    setCsvFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const emails = parseCSVEmails(e.target.result);
+      setInput(emails.join("\n"));
+    };
+    reader.readAsText(file);
   }
 
   async function handleBulk() {
@@ -168,6 +191,29 @@ export default function App() {
         {/* ── Bulk Tab ── */}
         {tab === "bulk" && (
           <div style={{ background:"#fff", border:"1px solid #e2e8f0", borderRadius:20, padding:28, marginBottom:28 }}>
+
+            {/* CSV Upload */}
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={e => { e.preventDefault(); setDragOver(false); handleCSVFile(e.dataTransfer.files[0]); }}
+              style={{ border:`2px dashed ${dragOver ? "#2563eb" : "#cbd5e1"}`, borderRadius:14, padding:"18px 20px", marginBottom:18, background: dragOver ? "#eff6ff" : "#f8fafc", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, transition:"all 0.2s" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={dragOver?"#2563eb":"#94a3b8"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:600, color: dragOver?"#2563eb":"#374151" }}>
+                    {csvFileName ? `✓ ${csvFileName}` : "Upload CSV file"}
+                  </div>
+                  <div style={{ fontSize:11, color:"#94a3b8", marginTop:1 }}>Drag & drop or click to browse — emails auto-extracted</div>
+                </div>
+              </div>
+              <label style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 18px", borderRadius:9, border:"1px solid #e2e8f0", background:"#fff", fontSize:12, fontWeight:600, color:"#374151", cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Browse
+                <input type="file" accept=".csv" style={{ display:"none" }} onChange={e => handleCSVFile(e.target.files[0])} />
+              </label>
+            </div>
+
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
               <label style={{ fontSize:13, fontWeight:600, color:"#374151" }}>
                 Email addresses <span style={{ color:"#94a3b8", fontWeight:400 }}>— one per line or comma-separated</span>
