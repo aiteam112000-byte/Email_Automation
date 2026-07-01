@@ -1,5 +1,6 @@
 const express = require("express");
 const dns = require("dns/promises");
+const { getTokenForSession } = require("./auth");
 
 const router = express.Router();
 
@@ -9,9 +10,8 @@ const DISPOSABLE_DOMAINS = new Set([
   "guerrillamail.info", "grr.la", "guerrillamailblock.com",
 ]);
 
-async function verifyWithApify(emails) {
-  const token = process.env.APIFY_API_TOKEN;
-  if (!token) throw new Error("APIFY_API_TOKEN not configured");
+async function verifyWithApify(emails, token) {
+  if (!token) throw new Error("No Apify token — please set your token in Settings");
 
   const runRes = await fetch(
     `https://api.apify.com/v2/acts/account56~email-verifier/runs?token=${token}`,
@@ -19,7 +19,7 @@ async function verifyWithApify(emails) {
   );
   const runData = await runRes.json();
   const runId = runData?.data?.id;
-  if (!runId) throw new Error("Failed to start Apify actor");
+  if (!runId) throw new Error(`Failed to start Apify actor: ${JSON.stringify(runData)}`);
 
   for (let i = 0; i < 30; i++) {
     await new Promise((r) => setTimeout(r, 3000));
@@ -73,8 +73,10 @@ router.post("/", async (req, res) => {
   if (emails.length > 500)
     return res.status(400).json({ error: "Maximum 500 emails per request" });
 
+  const token = getTokenForSession(req.headers["x-session-id"]);
+
   try {
-    const apifyResults = await verifyWithApify(emails);
+    const apifyResults = await verifyWithApify(emails, token);
     return res.json({ results: apifyResults.map(mapApifyResult), method: "apify" });
   } catch (err) {
     console.warn("[validator] Apify failed, using fast fallback:", err.message);
@@ -83,13 +85,15 @@ router.post("/", async (req, res) => {
   }
 });
 
-// GET /api/validate/single?email=...  (for landing page demo)
+// GET /api/validate/single?email=...
 router.get("/single", async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: "email query param required" });
 
+  const token = getTokenForSession(req.headers["x-session-id"]);
+
   try {
-    const apifyResults = await verifyWithApify([email]);
+    const apifyResults = await verifyWithApify([email], token);
     return res.json(mapApifyResult(apifyResults[0]));
   } catch {
     return res.json(await fastValidate(email));
