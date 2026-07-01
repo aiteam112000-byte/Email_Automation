@@ -176,9 +176,11 @@ function SettingsModal({ sessionId, username, onClose }) {
 }
 
 // --- Main App -----------------------------------------------------------------
+function historyKey(username) { return `vx_history_${username}`; }
+
 export default function App() {
   const [session, setSession] = useState(() => {
-    try { return JSON.parse(sessionStorage.getItem("vx_session") ?? "null"); } catch { return null; }
+    try { return JSON.parse(localStorage.getItem("vx_session") ?? "null"); } catch { return null; }
   });
   const [showSettings, setShowSettings] = useState(false);
   const [tab, setTab] = useState("bulk");
@@ -192,14 +194,23 @@ export default function App() {
   const [method, setMethod] = useState("");
   const [filter, setFilter] = useState("ALL");
   const [history, setHistory] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("vx_history") ?? "[]"); } catch { return []; }
+    try {
+      const s = JSON.parse(localStorage.getItem("vx_session") ?? "null");
+      if (!s?.username) return [];
+      return JSON.parse(localStorage.getItem(historyKey(s.username)) ?? "[]");
+    } catch { return []; }
   });
   const [showHistory, setShowHistory] = useState(false);
 
   function handleLogin(sessionId, username) {
     const s = { sessionId, username };
     setSession(s);
-    sessionStorage.setItem("vx_session", JSON.stringify(s));
+    localStorage.setItem("vx_session", JSON.stringify(s));
+    // Load this user's history
+    try {
+      const userHistory = JSON.parse(localStorage.getItem(historyKey(username)) ?? "[]");
+      setHistory(userHistory);
+    } catch { setHistory([]); }
   }
 
   async function handleLogout() {
@@ -210,7 +221,8 @@ export default function App() {
       }).catch(() => {});
     }
     setSession(null);
-    sessionStorage.removeItem("vx_session");
+    localStorage.removeItem("vx_session");
+    setHistory([]);
   }
 
   if (!session) return <LoginPage onLogin={handleLogin} />;
@@ -226,7 +238,7 @@ export default function App() {
       invalid: res.filter(r => r.status === "INVALID").length, results: res };
     const updated = [entry, ...history].slice(0, 20);
     setHistory(updated);
-    localStorage.setItem("vx_history", JSON.stringify(updated));
+    localStorage.setItem(historyKey(session.username), JSON.stringify(updated));
   }
 
   function handleCSVFile(file) {
@@ -439,7 +451,7 @@ export default function App() {
             <div style={{ padding:"20px 24px", borderBottom:"1px solid #f1f5f9", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <h2 style={{ fontSize:16, fontWeight:700, color:"#0f172a", margin:0 }}>Validation History</h2>
               <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                {history.length > 0 && <button onClick={() => { setHistory([]); localStorage.removeItem("vx_history"); }} style={{ fontSize:12, color:"#dc2626", fontWeight:600, background:"none", border:"none", cursor:"pointer" }}>Clear all</button>}
+                {history.length > 0 && <button onClick={() => { setHistory([]); localStorage.removeItem(historyKey(session.username)); }} style={{ fontSize:12, color:"#dc2626", fontWeight:600, background:"none", border:"none", cursor:"pointer" }}>Clear all</button>}
                 <button onClick={() => setShowHistory(false)} style={{ fontSize:20, color:"#94a3b8", background:"none", border:"none", cursor:"pointer" }}>�</button>
               </div>
             </div>
