@@ -209,7 +209,10 @@ router.get("/", requireAuth, async (req, res) => {
   const campaigns = await prisma.campaign.findMany({
     where: { userId: req.user.id },
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { recipients: true, events: true } } },
+    include: {
+      _count: { select: { recipients: true, events: true } },
+      events: { select: { eventType: true } },
+    },
   });
   res.json(campaigns);
 });
