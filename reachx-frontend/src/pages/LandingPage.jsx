@@ -23,8 +23,8 @@ import gdprLogo from "../footer-logo/gdpr-ready-logo 2.svg";
 import ccpaLogo from "../footer-logo/ccpa-1.png";
 import iso9001Logo from "../footer-logo/ISO9001-2015.svg";
 import iso27001Logo from "../footer-logo/ISO27001-2022.svg";
-import horizontalLogo from "../assests/transparent-horizontal-removebg-preview.png";
-import verticalLogo from "../assests/trans-vertical-blue-removebg-preview.png";
+import horizontalLogo from "../assests/horizontal_with_R-removebg-preview.png";
+import verticalLogo from "../assests/vertical_with_R-removebg-preview.png";
 import "./landing.css";
 
 export default function LandingPage() {

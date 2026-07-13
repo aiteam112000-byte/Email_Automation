@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { logout } from "../lib/auth";
 import { getUser } from "../lib/api";
-import horizontalLogo from "../assests/transparent-horizontal-removebg-preview.png";
+import horizontalLogo from "../assests/horizontal_with_R-removebg-preview.png";
 
 const NAV = [
   { label: "Overview", href: "/dashboard", icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg> },
@@ -22,9 +22,9 @@ export default function Sidebar() {
 
   return (
     <aside className="w-[220px] shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-slate-200">
-      <div className="px-5 pt-6 pb-6">
+      <div className="px-5 pt-4 pb-3">
         <div className="flex items-center">
-          <img src={horizontalLogo} alt="GTM Reach" className="h-8 w-auto" />
+          <img src={horizontalLogo} alt="GTM Reach" className="h-12 w-auto" />
         </div>
       </div>
 

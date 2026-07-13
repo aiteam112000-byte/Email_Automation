@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { api, setToken, setUser } from "../lib/api";
-import horizontalLogo from "../assests/transparent-horizontal-removebg-preview.png";
+import horizontalLogo from "../assests/horizontal_with_R-removebg-preview.png";
 
 const inputCls = "w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:border-slate-300 transition";
 
