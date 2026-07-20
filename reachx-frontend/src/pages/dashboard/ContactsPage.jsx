@@ -156,7 +156,7 @@ export default function ContactsPage() {
                     <th className="px-5 py-3 text-left">
                       <input type="checkbox" checked={filtered.length > 0 && filtered.every((c) => selected.has(c.id))} onChange={() => setSelected(filtered.every((c) => selected.has(c.id)) ? new Set() : new Set(filtered.map((c) => c.id)))} className="rounded border-slate-300" />
                     </th>
-                    {["Email", "Name", "Company", "Tags", ""].map((h) => (
+                    {["Email", "Name", "Company", "Tags", "Source", ""].map((h) => (
                       <th key={h} className="px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-left">{h}</th>
                     ))}
                   </tr>
@@ -173,6 +173,11 @@ export default function ContactsPage() {
                           <span key={t} className="inline-block mr-1 px-2 py-0.5 rounded-full text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-600">{t.trim()}</span>
                         )) : <span className="text-slate-300">—</span>}
                         {c.unsubscribed && <span className="inline-block ml-1 px-2 py-0.5 rounded-full text-[11px] bg-rose-50 border border-rose-200 text-rose-500">unsub</span>}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {c.segmentName
+                          ? <span className="px-2 py-0.5 rounded-full text-[11px] bg-violet-50 border border-violet-100 text-violet-600">{c.segmentName}</span>
+                          : <span className="text-slate-300 text-xs">Direct</span>}
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <button onClick={() => handleDelete(c.id)} className="text-xs text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100">Delete</button>

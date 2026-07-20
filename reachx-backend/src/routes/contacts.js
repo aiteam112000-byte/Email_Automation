@@ -11,7 +11,21 @@ router.get("/", requireAuth, async (req, res) => {
     where: { userId: req.user.id },
     orderBy: { createdAt: "desc" },
   });
-  res.json(contacts);
+
+  // Find which manual segments each contact belongs to
+  const segments = await prisma.segment.findMany({
+    where: { userId: req.user.id, filterType: "manual" },
+    select: { id: true, name: true, filterValue: true },
+  });
+
+  const contactWithSegment = contacts.map((c) => {
+    const seg = segments.find((s) => {
+      try { return JSON.parse(s.filterValue || "[]").includes(c.email.toLowerCase()); } catch { return false; }
+    });
+    return { ...c, segmentName: seg?.name ?? null };
+  });
+
+  res.json(contactWithSegment);
 });
 
 // POST /api/contacts

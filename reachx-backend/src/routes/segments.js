@@ -55,6 +55,49 @@ router.delete("/", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/segments/:id/contacts — add a contact to a manual segment
+router.post("/:id/contacts", requireAuth, async (req, res) => {
+  const segment = await prisma.segment.findFirst({ where: { id: req.params.id, userId: req.user.id } });
+  if (!segment) return res.status(404).json({ error: "Not found" });
+  if (segment.filterType !== "manual") return res.status(400).json({ error: "Only manual segments support this" });
+
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "email required" });
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Upsert contact
+  await prisma.contact.upsert({
+    where: { email_userId: { email: normalizedEmail, userId: req.user.id } },
+    create: { email: normalizedEmail, userId: req.user.id },
+    update: {},
+  });
+
+  // Add to segment's email list
+  const emails = JSON.parse(segment.filterValue || "[]");
+  if (!emails.includes(normalizedEmail)) {
+    emails.push(normalizedEmail);
+    await prisma.segment.update({ where: { id: segment.id }, data: { filterValue: JSON.stringify(emails) } });
+  }
+
+  res.json({ ok: true });
+});
+
+// DELETE /api/segments/:id/contacts — remove a contact from a manual segment
+router.delete("/:id/contacts", requireAuth, async (req, res) => {
+  const segment = await prisma.segment.findFirst({ where: { id: req.params.id, userId: req.user.id } });
+  if (!segment) return res.status(404).json({ error: "Not found" });
+  if (segment.filterType !== "manual") return res.status(400).json({ error: "Only manual segments support this" });
+
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "email required" });
+
+  const emails = JSON.parse(segment.filterValue || "[]").filter((e) => e !== email.trim().toLowerCase());
+  await prisma.segment.update({ where: { id: segment.id }, data: { filterValue: JSON.stringify(emails) } });
+
+  res.json({ ok: true });
+});
+
 // GET /api/segments/:id/contacts
 router.get("/:id/contacts", requireAuth, async (req, res) => {
   const segment = await prisma.segment.findFirst({ where: { id: req.params.id, userId: req.user.id } });
