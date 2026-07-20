@@ -125,11 +125,7 @@ export default function LoginPage() {
             <span className="text-base">Z</span>
             Continue with Zoho
           </button>
-          <p className="text-center text-sm text-slate-500 mt-6">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-indigo-600 font-medium hover:text-indigo-700">Create one</Link>
-          </p>
-          <div className="text-center mt-3">
+          <div className="text-center mt-4">
             <Link to="/" className="text-sm text-slate-400 hover:text-slate-600">← Back to home</Link>
           </div>
         </div>
