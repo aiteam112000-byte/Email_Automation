@@ -1,2 +1,12 @@
 node_modules/
 .env
+.env.*
+!.env.example
+
+# Local file uploads (now stored in S3)
+uploads/*
+!uploads/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*

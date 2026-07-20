@@ -9,11 +9,13 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   const { rid: recipientId, cid: campaignId, type, url, pid: pixelAssetId } = req.query;
 
-  // Filter out Google Image Proxy prefetches (Googlebot-Image, GoogleImageProxy)
+  // Filter out Google Image Proxy and other bot prefetches
   const ua = req.headers["user-agent"] ?? "";
-  const isGoogleProxy = /Googlebot-Image|GoogleImageProxy|Google Image Proxy/i.test(ua);
+  const isGoogleProxy = /Googlebot-Image|GoogleImageProxy|Google Image Proxy|GoogleBot|AdsBot-Google/i.test(ua);
+  // Also block empty user agents and known bot patterns
+  const isSuspiciousUA = ua === "" || /bot|crawler|spider|prefetch|preview|scan/i.test(ua);
 
-  if (!isGoogleProxy && recipientId && campaignId) {
+  if (!isGoogleProxy && !isSuspiciousUA && recipientId && campaignId) {
     try {
       const eventType = type === "click" ? "CLICKED" : "OPENED";
 

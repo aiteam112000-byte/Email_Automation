@@ -35,6 +35,15 @@ export default function LoginPage() {
 
     if (!token) return;
 
+    // Check if it's a temp token (new user needs to set password)
+    try {
+      const payload = JSON.parse(window.atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (payload.isTemp) {
+        navigate(`/set-password?token=${encodeURIComponent(token)}&user=${encodeURIComponent(userParam ?? "")}`);
+        return;
+      }
+    } catch { /* not a temp token, proceed normally */ }
+
     setToken(token);
     if (userParam) {
       const userObj = decodeBase64Url(userParam);

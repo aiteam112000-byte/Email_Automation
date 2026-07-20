@@ -1,1 +1,33 @@
 reachx-validator/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Config files
+vite.config.js
+vite.config.ts
+postcss.config.js
+postcss.config.mjs
+tailwind.config.js
+tailwind.config.ts

@@ -83,6 +83,12 @@ router.get("/callback", async (req, res) => {
       return res.redirect(`${frontendUrl}/dashboard/settings?gmail=connected`);
     }
 
+    const isNewUser = !user.password;
+    if (isNewUser) {
+      const tempToken = jwt.sign({ id: user.id, email: user.email, isTemp: true }, process.env.JWT_SECRET, { expiresIn: "15m" });
+      return res.redirect(`${frontendUrl}/set-password?token=${encodeURIComponent(tempToken)}&user=${encodeURIComponent(userPayload)}&gmail=connected`);
+    }
+
     return res.redirect(`${frontendUrl}/login?token=${encodeURIComponent(token)}&user=${encodeURIComponent(userPayload)}&gmail=connected`);
   } catch (err) {
     console.error("[gmail callback]", err);
