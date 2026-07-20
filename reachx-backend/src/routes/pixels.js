@@ -1,32 +1,25 @@
 const express = require("express");
-const path = require("path");
 const multer = require("multer");
 const { prisma } = require("../lib/prisma");
 const { requireAuth } = require("../middleware/auth");
+const { uploadToS3, deleteFromS3 } = require("../lib/s3");
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: path.join(__dirname, "../../uploads"),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".png";
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
+// Use memory storage — we stream directly to S3
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
     else cb(new Error("Only image files allowed"));
   },
 });
 
-// POST /api/pixels/uploadupload an image file, returns its URL
-router.post("/upload", requireAuth, upload.single("file"), (req, res) => {
+// POST /api/pixels/upload
+router.post("/upload", requireAuth, upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-  const appUrl = process.env.APP_URL ?? "http://localhost:4000";
-  const url = `${appUrl}/uploads/${req.file.filename}`;
+  const { url } = await uploadToS3(req.file.buffer, req.file.originalname, req.file.mimetype);
   res.json({ url });
 });
 

@@ -9,7 +9,11 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   const { rid: recipientId, cid: campaignId, type, url, pid: pixelAssetId } = req.query;
 
-  if (recipientId && campaignId) {
+  // Filter out Google Image Proxy prefetches (Googlebot-Image, GoogleImageProxy)
+  const ua = req.headers["user-agent"] ?? "";
+  const isGoogleProxy = /Googlebot-Image|GoogleImageProxy|Google Image Proxy/i.test(ua);
+
+  if (!isGoogleProxy && recipientId && campaignId) {
     try {
       const eventType = type === "click" ? "CLICKED" : "OPENED";
 

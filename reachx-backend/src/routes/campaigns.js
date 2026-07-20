@@ -9,17 +9,10 @@ const { emailQueue } = require("../lib/queue");
 const { getNextGmailTransporter } = require("../lib/gmail");
 
 const router = express.Router();
-const path = require("path");
-const fs = require("fs/promises");
+const { uploadToS3, deleteFromS3 } = require("../lib/s3");
 const multer = require("multer");
 
-const storage = multer.diskStorage({
-  destination: path.join(__dirname, "../../uploads"),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || "";
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_PROJECT = process.env.GEMINI_PROJECT;
@@ -292,14 +285,13 @@ router.post("/:id/attachments", requireAuth, upload.single("file"), async (req, 
   if (!campaign) return res.status(404).json({ error: "Not found" });
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-  const appUrl = process.env.APP_URL ?? "http://localhost:4000";
-  const url = `${appUrl}/uploads/${req.file.filename}`;
+  const { key, url } = await uploadToS3(req.file.buffer, req.file.originalname, req.file.mimetype);
 
   const rec = await prisma.campaignAttachment.create({
     data: {
       campaignId: campaign.id,
       filename: req.file.originalname,
-      storedFilename: req.file.filename,
+      storedFilename: key,
       url,
       contentType: req.file.mimetype,
       size: req.file.size,
@@ -317,9 +309,9 @@ router.delete("/:id/attachments/:aid", requireAuth, async (req, res) => {
   const att = await prisma.campaignAttachment.findFirst({ where: { id: req.params.aid, campaignId: campaign.id } });
   if (!att) return res.status(404).json({ error: "Attachment not found" });
 
-  // delete file from disk if exists
+  // delete file from S3 if exists
   try {
-    await fs.unlink(path.join(__dirname, "../../uploads", att.storedFilename));
+    await deleteFromS3(att.storedFilename);
   } catch (e) { /* ignore */ }
 
   await prisma.campaignAttachment.delete({ where: { id: att.id } });
@@ -415,7 +407,7 @@ router.post("/:id/send", requireAuth, async (req, res) => {
       const htmlWithTracking = rewriteLinksForTracking(emailContentHtml, recipient.id, campaign.id, appUrl) + trackingPixel + unsubFooter;
       const attachmentFiles = (campaign.attachments || []).map((att) => ({
         filename: att.filename,
-        path: path.join(__dirname, "../../uploads", att.storedFilename),
+        path: att.url,
         contentType: att.contentType || undefined,
       }));
 
