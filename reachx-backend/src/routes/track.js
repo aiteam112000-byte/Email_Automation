@@ -5,25 +5,15 @@ const { triggerWorkflows } = require("../lib/triggerWorkflows");
 
 const router = express.Router();
 
-// Google's IP ranges used by Gmail Image Proxy (66.102.x.x, 74.125.x.x, 66.249.x.x, 209.85.x.x)
-function isGoogleIPRange(ip) {
-  if (!ip) return false;
-  const googlePrefixes = ["66.102.", "74.125.", "66.249.", "209.85.", "216.239.", "64.233.", "72.14.", "108.177.", "142.250.", "172.217.", "173.194."];
-  return googlePrefixes.some((prefix) => ip.startsWith(prefix));
-}
-
 // GET /api/track
 router.get("/", async (req, res) => {
   const { rid: recipientId, cid: campaignId, type, url, pid: pixelAssetId } = req.query;
 
+  // Only filter known Google bot/proxy user agents — not IPs (Gmail proxies real opens too)
   const ua = req.headers["user-agent"] ?? "";
-  const ip = (req.headers["x-forwarded-for"]?.split(",")[0] ?? req.ip ?? "").trim();
+  const isBot = /Googlebot-Image|GoogleImageProxy|AdsBot-Google|bingbot|crawler|spider/i.test(ua);
 
-  const isGoogleProxy = /Googlebot-Image|GoogleImageProxy|Google Image Proxy|GoogleBot|AdsBot-Google/i.test(ua)
-    || isGoogleIPRange(ip);
-  const isSuspiciousUA = ua === "" || /bot|crawler|spider|prefetch|preview|scan/i.test(ua);
-
-  if (!isGoogleProxy && !isSuspiciousUA && recipientId && campaignId) {
+  if (!isBot && recipientId && campaignId) {
     try {
       const eventType = type === "click" ? "CLICKED" : "OPENED";
 
