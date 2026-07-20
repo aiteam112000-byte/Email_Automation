@@ -60,7 +60,8 @@ export default function SegmentsPage() {
         <div className="max-w-6xl mx-auto px-8 py-8 space-y-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between pt-1">
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Saved segments</h1>
+              <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-widest mb-1">CRM</p>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">Segments</h1>
               <p className="text-slate-500 text-sm mt-2 max-w-2xl">Create a segment by tag, status, date range, or upload a contact list once and reuse it across campaigns.</p>
             </div>
             <button onClick={() => setShowAdd(true)} className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl text-sm font-semibold transition-all shadow-lg shadow-indigo-100/50">

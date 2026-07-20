@@ -96,6 +96,7 @@ export default function PixelFolderPage() {
           {/* Header */}
           <div className="flex items-center justify-between pt-1">
             <div>
+              <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-widest mb-1">Assets</p>
               <h1 className="text-xl font-bold text-slate-900 tracking-tight">Pixel Folder</h1>
               <p className="text-sm text-slate-400 mt-1">Manage tracking pixels and images for your campaigns</p>
             </div>
