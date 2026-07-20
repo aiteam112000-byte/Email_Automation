@@ -121,10 +121,10 @@ export default function LoginPage() {
             <span className="text-base">G</span>
             Continue with Google
           </button>
-          <button type="button" onClick={handleZohoSignIn} disabled={loading} className="w-full border border-slate-200 rounded-2xl py-3 text-sm font-medium text-slate-700 inline-flex items-center justify-center gap-2 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed mt-3">
+          {/* <button type="button" onClick={handleZohoSignIn} disabled={loading} className="w-full border border-slate-200 rounded-2xl py-3 text-sm font-medium text-slate-700 inline-flex items-center justify-center gap-2 hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed mt-3">
             <span className="text-base">Z</span>
             Continue with Zoho
-          </button>
+          </button> */}
           <div className="text-center mt-4">
             <Link to="/" className="text-sm text-slate-400 hover:text-slate-600">← Back to home</Link>
           </div>
