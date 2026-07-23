@@ -1,13 +1,58 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
 import Sidebar from "../../components/Sidebar";
 import { api } from "../../lib/api";
 
 const inputCls = "w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all";
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
+// Reusable multi-select checkbox dropdown
+function MultiSelect({ label, options, selected, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  function toggle(val) {
+    onChange(selected.includes(val) ? selected.filter((v) => v !== val) : [...selected, val]);
+  }
+
+  const activeCount = selected.length;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 bg-white border rounded-xl px-3 py-2 text-xs font-medium transition-all ${activeCount > 0 ? "border-indigo-300 text-indigo-700 bg-indigo-50" : "border-slate-200 text-slate-600 hover:border-slate-300"}`}>
+        {label}{activeCount > 0 && <span className="bg-indigo-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{activeCount}</span>}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`transition-transform ${open ? "rotate-180" : ""}`}><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {open && (
+        <div className="absolute top-full mt-1 left-0 bg-white border border-slate-200 rounded-xl shadow-lg z-30 min-w-[160px] py-1.5">
+          {options.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-slate-400">No options</p>
+          ) : (
+            options.map((opt) => (
+              <label key={opt} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer text-xs text-slate-700">
+                <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} className="rounded border-slate-300 text-indigo-600" />
+                {opt}
+              </label>
+            ))
+          )}
+          {activeCount > 0 && (
+            <div className="border-t border-slate-100 mt-1 pt-1">
+              <button onClick={() => onChange([])} className="w-full text-left px-3 py-1.5 text-xs text-rose-500 hover:bg-rose-50 transition-colors">Clear</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ContactsPage() {
-  const navigate = useNavigate();
   const [contacts, setContacts] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -16,7 +61,12 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState(new Set());
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [sortBy, setSortBy] = useState("newest");
+  // multi-select filters
+  const [filterCompanies, setFilterCompanies] = useState([]);
+  const [filterTags, setFilterTags] = useState([]);
+  const [filterSources, setFilterSources] = useState([]);
+  const [filterStatuses, setFilterStatuses] = useState([]);
 
   useEffect(() => { api.get("/api/contacts").then((r) => r.json()).then(setContacts); }, []);
 
@@ -24,24 +74,36 @@ export default function ContactsPage() {
     setSelected((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
   }
 
-  const categories = [{ name: "All", count: contacts.length }];
-  const categoryMap = contacts.reduce((map, c) => {
-    const tags = c.tags?.split(",").map((t) => t.trim()).filter(Boolean) ?? [];
-    if (tags.length === 0) map.set("Uncategorized", (map.get("Uncategorized") ?? 0) + 1);
-    for (const tag of tags) map.set(tag, (map.get(tag) ?? 0) + 1);
-    return map;
-  }, new Map());
-  for (const [name, count] of categoryMap.entries()) categories.push({ name, count });
+  // Derive unique option lists from contacts
+  const allCompanies = [...new Set(contacts.map((c) => c.company).filter(Boolean))].sort();
+  const allTags = [...new Set(contacts.flatMap((c) => c.tags?.split(",").map((t) => t.trim()).filter(Boolean) ?? []))].sort();
+  const allSources = [...new Set(contacts.map((c) => c.segmentName ? "Segment" : "Direct"))];
+  const allStatuses = ["Active", "Unsubscribed"];
 
-  const categoryFiltered = selectedCategory === "All" ? contacts
-    : selectedCategory === "Uncategorized" ? contacts.filter((c) => !c.tags?.trim())
-    : contacts.filter((c) => c.tags?.split(",").map((t) => t.trim().toLowerCase()).includes(selectedCategory.toLowerCase()));
+  const filtered = contacts
+    .filter((c) =>
+      !search.trim() ||
+      c.email.toLowerCase().includes(search.toLowerCase()) ||
+      (c.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (c.company ?? "").toLowerCase().includes(search.toLowerCase())
+    )
+    .filter((c) => filterCompanies.length === 0 || filterCompanies.includes(c.company ?? ""))
+    .filter((c) => filterTags.length === 0 || filterTags.some((t) => c.tags?.split(",").map((x) => x.trim()).includes(t)))
+    .filter((c) => filterSources.length === 0 || filterSources.includes(c.segmentName ? "Segment" : "Direct"))
+    .filter((c) => filterStatuses.length === 0 || filterStatuses.includes(c.unsubscribed ? "Unsubscribed" : "Active"))
+    .sort((a, b) => {
+      if (sortBy === "oldest") return new Date(a.createdAt) - new Date(b.createdAt);
+      if (sortBy === "name_az") return (a.name ?? a.email).localeCompare(b.name ?? b.email);
+      if (sortBy === "name_za") return (b.name ?? b.email).localeCompare(a.name ?? a.email);
+      if (sortBy === "company") return (a.company ?? "").localeCompare(b.company ?? "");
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
 
-  const filtered = categoryFiltered.filter((c) =>
-    c.email.toLowerCase().includes(search.toLowerCase()) ||
-    (c.name ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (c.company ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const activeFiltersCount = filterCompanies.length + filterTags.length + filterSources.length + filterStatuses.length;
+
+  function clearAll() {
+    setFilterCompanies([]); setFilterTags([]); setFilterSources([]); setFilterStatuses([]); setSortBy("newest");
+  }
 
   async function handleAdd() {
     setLoading(true);
@@ -119,21 +181,33 @@ export default function ContactsPage() {
             ))}
           </div>
 
-          {categories.length > 1 && (
-            <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
-                <button key={cat.name} onClick={() => setSelectedCategory(cat.name)}
-                  className={`rounded-full px-4 py-2 text-xs font-medium transition-all ${selectedCategory === cat.name ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>
-                  {cat.name} ({cat.count})
-                </button>
-              ))}
-            </div>
-          )}
-
           {contacts.length > 0 && (
-            <div className="relative">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              <input placeholder="Search contacts..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all" />
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Sort */}
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name_az">Name A→Z</option>
+                <option value="name_za">Name Z→A</option>
+                <option value="company">Company A→Z</option>
+              </select>
+
+              <MultiSelect label="Company" options={allCompanies} selected={filterCompanies} onChange={setFilterCompanies} />
+              <MultiSelect label="Tags" options={allTags} selected={filterTags} onChange={setFilterTags} />
+              <MultiSelect label="Source" options={allSources} selected={filterSources} onChange={setFilterSources} />
+              <MultiSelect label="Status" options={allStatuses} selected={filterStatuses} onChange={setFilterStatuses} />
+
+              {activeFiltersCount > 0 && (
+                <button onClick={clearAll} className="text-xs text-rose-500 hover:text-rose-700 border border-rose-200 hover:bg-rose-50 rounded-xl px-3 py-2 transition-all">
+                  Clear ({activeFiltersCount})
+                </button>
+              )}
+
+              {/* Search on right */}
+              <div className="ml-auto relative">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input placeholder="Search contacts…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-52 bg-white border border-slate-200 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all" />
+              </div>
             </div>
           )}
 
@@ -147,7 +221,7 @@ export default function ContactsPage() {
               </div>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-400 text-sm">No contacts match "{search}"</div>
+            <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-400 text-sm">No contacts match the current filters.</div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
               <table className="w-full text-sm">
@@ -156,7 +230,7 @@ export default function ContactsPage() {
                     <th className="px-5 py-3 text-left">
                       <input type="checkbox" checked={filtered.length > 0 && filtered.every((c) => selected.has(c.id))} onChange={() => setSelected(filtered.every((c) => selected.has(c.id)) ? new Set() : new Set(filtered.map((c) => c.id)))} className="rounded border-slate-300" />
                     </th>
-                    {["Email", "Name", "Company", "Tags", "Source", ""].map((h) => (
+                    {["Email", "Name", "Company", "Tags", "Status", "Source", ""].map((h) => (
                       <th key={h} className="px-5 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-left">{h}</th>
                     ))}
                   </tr>
@@ -172,12 +246,16 @@ export default function ContactsPage() {
                         {c.tags ? c.tags.split(",").map((t) => (
                           <span key={t} className="inline-block mr-1 px-2 py-0.5 rounded-full text-[11px] bg-indigo-50 border border-indigo-100 text-indigo-600">{t.trim()}</span>
                         )) : <span className="text-slate-300">—</span>}
-                        {c.unsubscribed && <span className="inline-block ml-1 px-2 py-0.5 rounded-full text-[11px] bg-rose-50 border border-rose-200 text-rose-500">unsub</span>}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {c.unsubscribed
+                          ? <span className="px-2 py-0.5 rounded-full text-[11px] bg-rose-50 border border-rose-200 text-rose-500">Unsubscribed</span>
+                          : <span className="px-2 py-0.5 rounded-full text-[11px] bg-emerald-50 border border-emerald-200 text-emerald-600">Active</span>}
                       </td>
                       <td className="px-5 py-3.5">
                         {c.segmentName
                           ? <span className="px-2 py-0.5 rounded-full text-[11px] bg-violet-50 border border-violet-100 text-violet-600">{c.segmentName}</span>
-                          : <span className="text-slate-300 text-xs">Direct</span>}
+                          : <span className="text-slate-400 text-xs">Direct</span>}
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <button onClick={() => handleDelete(c.id)} className="text-xs text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100">Delete</button>
@@ -186,6 +264,9 @@ export default function ContactsPage() {
                   ))}
                 </tbody>
               </table>
+              <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 text-xs text-slate-400">
+                {filtered.length} of {contacts.length} contact{contacts.length !== 1 ? "s" : ""}
+              </div>
             </div>
           )}
         </div>
