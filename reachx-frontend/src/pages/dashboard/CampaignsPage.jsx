@@ -111,7 +111,10 @@ export default function CampaignsPage() {
                           <input type="checkbox" checked={isSelected} onChange={() => toggleOne(c.id)} className="rounded border-slate-300 cursor-pointer" />
                         </td>
                         <td className="px-5 py-4">
-                          <Link to={`/dashboard/campaigns/${c.id}`} className="font-medium text-slate-800 group-hover:text-indigo-600 transition-colors">{c.name}</Link>
+                          <Link
+                            to={c.status === "DRAFT" ? `/dashboard/campaigns/new?draft=${c.id}` : `/dashboard/campaigns/${c.id}`}
+                            className="font-medium text-slate-800 group-hover:text-indigo-600 transition-colors"
+                          >{c.name}</Link>
                           <div className="text-xs text-slate-400 mt-0.5 truncate max-w-xs">{c.subject}</div>
                         </td>
                         <td className="px-5 py-4 text-right">

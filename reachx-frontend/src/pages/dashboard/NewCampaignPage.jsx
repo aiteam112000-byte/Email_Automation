@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import { api } from "../../lib/api";
 
@@ -20,6 +20,9 @@ const STEPS = [{ n: 1, label: "Campaign Info" }, { n: 2, label: "Email Content" 
 
 export default function NewCampaignPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const draftId = searchParams.get("draft");
+
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
@@ -39,6 +42,77 @@ export default function NewCampaignPage() {
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [campaignId, setCampaignId] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(""); // "saving" | "saved" | ""
+  const autoSaveTimer = useRef(null);
+  const [draftLoaded, setDraftLoaded] = useState(false);
+
+  // Load existing draft when ?draft=id is in the URL
+  useEffect(() => {
+    if (!draftId || draftLoaded) return;
+    api.get(`/api/campaigns/${draftId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && data.status === "DRAFT") {
+          setCampaignId(data.id);
+          setName(data.name ?? "");
+          setSubject(data.subject ?? "");
+          setContent(data.content ?? "");
+          if (data.attachments?.length)
+            setAttachments(data.attachments.map((a) => ({ url: a.url, filename: a.filename, id: a.id })));
+          const hasRecipients = data.recipients?.length > 0;
+          if (hasRecipients)
+            setRecipientInput(data.recipients.map((r) => r.email).join("\n"));
+          // Resume at the furthest step the user had reached
+          if (hasRecipients) {
+            setStep(3);
+          } else if (data.content?.trim()) {
+            setStep(2);
+          } else if (data.name?.trim() && data.subject?.trim()) {
+            setStep(2);
+          }
+          setDraftLoaded(true);
+        }
+      })
+      .catch(() => {});
+  }, [draftId, draftLoaded]);
+
+  // Auto-save draft when name/subject/content changes
+  const autoSave = useCallback(async (updatedName, updatedSubject, updatedContent, cid) => {
+    if (!updatedName.trim() && !updatedSubject.trim()) return;
+    setSaveStatus("saving");
+    try {
+      if (cid) {
+        await api.patch(`/api/campaigns/${cid}/edit`, { name: updatedName, subject: updatedSubject, content: updatedContent });
+      } else {
+        const res = await api.post("/api/campaigns/draft", { name: updatedName || "Draft", subject: updatedSubject, content: updatedContent });
+        const data = await res.json();
+        if (res.ok) setCampaignId(data.id);
+      }
+      setSaveStatus("saved");
+    } catch {
+      setSaveStatus("");
+    }
+  }, []);
+
+  function scheduleAutoSave(n, s, c, cid) {
+    clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => autoSave(n, s, c, cid), 1500);
+  }
+
+  function handleNameChange(val) {
+    setName(val);
+    scheduleAutoSave(val, subject, content, campaignId);
+  }
+
+  function handleSubjectChange(val) {
+    setSubject(val);
+    scheduleAutoSave(name, val, content, campaignId);
+  }
+
+  function handleContentChange(val) {
+    setContent(val);
+    scheduleAutoSave(name, subject, val, campaignId);
+  }
 
   const parsedEmails = recipientInput.split(/[\n,]+/).map((e) => e.trim()).filter(Boolean);
   const recipientCount = recipientMode === "segment" ? (segmentPreview?.count ?? 0) : parsedEmails.length;
@@ -146,6 +220,7 @@ export default function NewCampaignPage() {
         setSubject(data.subject ?? "");
         setContent(data.content ?? "");
         setAiGeneratedPrompt(aiPrompt);
+        scheduleAutoSave(name, data.subject ?? subject, data.content ?? content, campaignId);
       }
     } catch (err) {
       setAiError("Unable to generate a template right now.");
@@ -176,6 +251,8 @@ export default function NewCampaignPage() {
               );
             })}
             <div className="ml-auto flex items-center gap-2 py-3">
+              {saveStatus === "saving" && <span className="text-xs text-slate-400">Saving...</span>}
+              {saveStatus === "saved" && <span className="text-xs text-emerald-500">Draft saved</span>}
               {step > 1 && <button onClick={() => setStep(step - 1)} className="px-4 py-2 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Previous</button>}
               {step < 3 ? (
                 <button onClick={() => canNext && setStep(step + 1)} disabled={!canNext} className="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-all">Next Step →</button>
@@ -195,10 +272,10 @@ export default function NewCampaignPage() {
             <div className="space-y-6">
               <div><h1 className="text-xl font-bold text-slate-900 tracking-tight">Campaign Info</h1><p className="text-slate-400 text-sm mt-1">Give your campaign a name and subject line.</p></div>
               <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5">
-                <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Campaign name</label><input placeholder="e.g. April Newsletter" value={name} onChange={(e) => setName(e.target.value)} className={inputCls} /></div>
+                <div className="space-y-1.5"><label className="text-sm font-medium text-slate-700">Campaign name</label><input placeholder="e.g. April Newsletter" value={name} onChange={(e) => handleNameChange(e.target.value)} className={inputCls} /></div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-slate-700">Subject line</label>
-                  <input placeholder="e.g. Here's what's new this month" value={subject} onChange={(e) => setSubject(e.target.value)} className={inputCls} />
+                  <input placeholder="e.g. Here's what's new this month" value={subject} onChange={(e) => handleSubjectChange(e.target.value)} className={inputCls} />
                   {subject && <p className="text-xs text-slate-400">{subject.length} characters · {subject.length <= 50 ? "Good length" : subject.length <= 70 ? "A bit long" : "Too long"}</p>}
                 </div>
               </div>
@@ -247,7 +324,7 @@ export default function NewCampaignPage() {
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-slate-700">Email body</label>
                     <p className="text-xs text-slate-400">HTML or plain text. Use {`{{name}}`}, {`{{email}}`}, {`{{company}}`} as placeholders.</p>
-                    <textarea placeholder={"<p>Hello {{name}},</p>\n<p>Here's your update...</p>"} value={content} onChange={(e) => setContent(e.target.value)} rows={14} className={`${inputCls} font-mono resize-none`} />
+                    <textarea placeholder={"<p>Hello {{name}},</p>\n<p>Here's your update...</p>"} value={content} onChange={(e) => handleContentChange(e.target.value)} rows={14} className={`${inputCls} font-mono resize-none`} />
                   </div>
                   <div className="space-y-1.5">
                     <div>
