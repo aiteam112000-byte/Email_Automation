@@ -2,6 +2,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import { api } from "../../lib/api";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import TiptapLink from "@tiptap/extension-link";
+import TiptapImage from "@tiptap/extension-image";
+import Underline from "@tiptap/extension-underline";
+import Placeholder from "@tiptap/extension-placeholder";
 
 const inputCls = "w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all";
 
@@ -48,8 +54,27 @@ export default function NewCampaignPage() {
   const [previewModal, setPreviewModal] = useState(false);
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [assets, setAssets] = useState([]);
-  const [pendingAsset, setPendingAsset] = useState(null); // { asset, linkUrl }
+  const [pendingAsset, setPendingAsset] = useState(null);
   const contentTextareaRef = useRef(null);
+  const [linkModal, setLinkModal] = useState(false);
+  const [linkForm, setLinkForm] = useState({ text: "", url: "" });
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      TiptapLink.configure({ openOnClick: false, HTMLAttributes: { class: "text-indigo-600 underline" } }),
+      TiptapImage.configure({ HTMLAttributes: { style: "max-width:100%" } }),
+      Placeholder.configure({ placeholder: "Write your email here…  Use {{name}}, {{email}}, {{company}} as placeholders." }),
+    ],
+    content: "",
+    onUpdate({ editor }) {
+      const html = editor.getHTML();
+      // treat empty paragraph as empty
+      const val = html === "<p></p>" ? "" : html;
+      handleContentChange(val);
+    },
+  });
 
   // Load existing draft when ?draft=id is in the URL
   useEffect(() => {
@@ -62,6 +87,9 @@ export default function NewCampaignPage() {
           setName(data.name ?? "");
           setSubject(data.subject ?? "");
           setContent(data.content ?? "");
+          if (editor && data.content) {
+            editor.commands.setContent(data.content);
+          }
           if (data.attachments?.length)
             setAttachments(data.attachments.map((a) => ({ url: a.url, filename: a.filename, id: a.id })));
           const hasRecipients = data.recipients?.length > 0;
@@ -79,7 +107,7 @@ export default function NewCampaignPage() {
         }
       })
       .catch(() => {});
-  }, [draftId, draftLoaded]);
+  }, [draftId, draftLoaded, editor]);
 
   // Auto-save draft when name/subject/content changes
   const autoSave = useCallback(async (updatedName, updatedSubject, updatedContent, cid) => {
@@ -224,6 +252,7 @@ export default function NewCampaignPage() {
       } else {
         setSubject(data.subject ?? "");
         setContent(data.content ?? "");
+        if (editor && data.content) editor.commands.setContent(data.content);
         setAiGeneratedPrompt(aiPrompt);
         scheduleAutoSave(name, data.subject ?? subject, data.content ?? content, campaignId);
       }
@@ -244,26 +273,37 @@ export default function NewCampaignPage() {
 
   function insertAsset(asset, linkUrl = "") {
     const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
-    let snippet;
+    if (!editor) return;
     if (asset.type === "pixel") {
       const src = asset.trackUrl ?? `${BASE}/api/track?pid=${asset.id}&type=open`;
-      snippet = `<img src="${src}" width="1" height="1" style="display:none" alt="" />`;
+      editor.commands.insertContent(`<img src="${src}" width="1" height="1" style="display:none" alt="" />`);
     } else {
-      const img = `<img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%;display:block" />`;
-      snippet = linkUrl.trim() ? `<a href="${linkUrl.trim()}">${img}</a>` : img;
-    }
-    const el = contentTextareaRef.current;
-    if (el) {
-      const start = el.selectionStart ?? content.length;
-      const end = el.selectionEnd ?? content.length;
-      const newContent = content.slice(0, start) + snippet + content.slice(end);
-      handleContentChange(newContent);
-      setTimeout(() => { el.focus(); el.setSelectionRange(start + snippet.length, start + snippet.length); }, 0);
-    } else {
-      handleContentChange(content + "\n" + snippet);
+      if (linkUrl.trim()) {
+        editor.commands.insertContent(`<a href="${linkUrl.trim()}"><img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%" /></a>`);
+      } else {
+        editor.chain().focus().setImage({ src: asset.imageUrl, alt: asset.name }).run();
+      }
     }
     setAssetPickerOpen(false);
     setPendingAsset(null);
+  }
+
+  function openLinkModal() {
+    const selectedText = editor ? editor.state.doc.textBetween(
+      editor.state.selection.from, editor.state.selection.to, ""
+    ) : "";
+    setLinkForm({ text: selectedText, url: "" });
+    setLinkModal(true);
+  }
+
+  function insertLink() {
+    if (!linkForm.url.trim() || !editor) return;
+    const label = linkForm.text.trim() || linkForm.url.trim();
+    editor.chain().focus()
+      .insertContent(`<a href="${linkForm.url.trim()}">${label}</a>`)
+      .run();
+    setLinkModal(false);
+    setLinkForm({ text: "", url: "" });
   }
 
   return (
@@ -362,13 +402,50 @@ export default function NewCampaignPage() {
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium text-slate-700">Email body</label>
-                      <button type="button" onClick={openAssetPicker} className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 rounded-lg px-2.5 py-1.5 transition-all">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                        Insert pixel / image
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={openLinkModal} className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-400 rounded-lg px-2.5 py-1.5 transition-all">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                          Insert link
+                        </button>
+                        <button type="button" onClick={openAssetPicker} className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 rounded-lg px-2.5 py-1.5 transition-all">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                          Insert pixel / image
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-400">Use {`{{name}}`}, {`{{email}}`}, {`{{company}}`} as placeholders.</p>
+                    {/* Tiptap toolbar */}
+                    <div className="flex items-center gap-1 border border-slate-200 rounded-t-xl bg-slate-50 px-2 py-1.5 flex-wrap">
+                      {[
+                        { label: <b>B</b>, title: "Bold (Ctrl+B)", action: () => editor?.chain().focus().toggleBold().run(), active: () => editor?.isActive("bold") },
+                        { label: <i>I</i>, title: "Italic (Ctrl+I)", action: () => editor?.chain().focus().toggleItalic().run(), active: () => editor?.isActive("italic") },
+                        { label: <u>U</u>, title: "Underline (Ctrl+U)", action: () => editor?.chain().focus().toggleUnderline().run(), active: () => editor?.isActive("underline") },
+                        { label: "H1", title: "Heading 1", action: () => editor?.chain().focus().toggleHeading({ level: 1 }).run(), active: () => editor?.isActive("heading", { level: 1 }) },
+                        { label: "H2", title: "Heading 2", action: () => editor?.chain().focus().toggleHeading({ level: 2 }).run(), active: () => editor?.isActive("heading", { level: 2 }) },
+                        { label: "• List", title: "Bullet list", action: () => editor?.chain().focus().toggleBulletList().run(), active: () => editor?.isActive("bulletList") },
+                        { label: "1. List", title: "Ordered list", action: () => editor?.chain().focus().toggleOrderedList().run(), active: () => editor?.isActive("orderedList") },
+                      ].map((btn, i) => (
+                        <button key={i} type="button" title={btn.title}
+                          onMouseDown={(e) => { e.preventDefault(); btn.action(); }}
+                          className={`px-2 py-1 rounded text-xs font-medium transition-all ${btn.active?.() ? "bg-indigo-100 text-indigo-700" : "text-slate-500 hover:bg-slate-200 hover:text-slate-800"}`}>
+                          {btn.label}
+                        </button>
+                      ))}
+                      <div className="w-px h-4 bg-slate-200 mx-1" />
+                      <button type="button" title="Insert link" onMouseDown={(e) => { e.preventDefault(); openLinkModal(); }}
+                        className="px-2 py-1 rounded text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-all flex items-center gap-1">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                        Link
+                      </button>
+                      <button type="button" title="Insert pixel / image" onMouseDown={(e) => { e.preventDefault(); openAssetPicker(); }}
+                        className="px-2 py-1 rounded text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-all flex items-center gap-1">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        Image
                       </button>
                     </div>
-                    <p className="text-xs text-slate-400">HTML or plain text. Use {`{{name}}`}, {`{{email}}`}, {`{{company}}`} as placeholders.</p>
-                    <textarea ref={contentTextareaRef} placeholder={"<p>Hello {{name}},</p>\n<p>Here's your update...</p>"} value={content} onChange={(e) => handleContentChange(e.target.value)} rows={14} className={`${inputCls} font-mono resize-none`} />
+                    <EditorContent editor={editor}
+                      className="border border-t-0 border-slate-200 rounded-b-xl bg-white min-h-[280px] px-4 py-3 text-sm text-slate-800 focus-within:ring-2 focus-within:ring-indigo-500/30 focus-within:border-indigo-400 transition-all [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[260px] [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-slate-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_a]:text-indigo-600 [&_.ProseMirror_a]:underline [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-5 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-5 [&_.ProseMirror_h1]:text-2xl [&_.ProseMirror_h1]:font-bold [&_.ProseMirror_h1]:mb-2 [&_.ProseMirror_h2]:text-xl [&_.ProseMirror_h2]:font-semibold [&_.ProseMirror_h2]:mb-2"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
@@ -501,6 +578,51 @@ export default function NewCampaignPage() {
           )}
         </div>
       </main>
+
+      {/* Insert link modal */}
+      {linkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <p className="text-sm font-semibold text-slate-800">Insert link</p>
+              <button onClick={() => setLinkModal(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700">Display text</label>
+                <input
+                  autoFocus
+                  placeholder="e.g. Click here, Book a demo"
+                  value={linkForm.text}
+                  onChange={(e) => setLinkForm({ ...linkForm, text: e.target.value })}
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700">URL</label>
+                <input
+                  type="url"
+                  placeholder="https://yourwebsite.com"
+                  value={linkForm.url}
+                  onChange={(e) => setLinkForm({ ...linkForm, url: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === "Enter") insertLink(); }}
+                  className={inputCls}
+                />
+                <p className="text-xs text-slate-400">Clicks will be tracked automatically.</p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={insertLink} disabled={!linkForm.url.trim()}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white py-2.5 rounded-xl text-sm font-semibold transition-all">
+                  Insert
+                </button>
+                <button onClick={() => setLinkModal(false)} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Asset picker modal */}
       {assetPickerOpen && (
