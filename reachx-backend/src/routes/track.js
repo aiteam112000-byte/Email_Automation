@@ -46,15 +46,27 @@ router.get("/", async (req, res) => {
           });
         }
       } else if (eventType === "CLICKED") {
-        await prisma.emailEvent.create({
-          data: { eventType: "CLICKED", campaignId, recipientId, metadata: url ? { url: decodeURIComponent(url) } : undefined },
+        // Deduplicate: only count one click per recipient per URL per campaign
+        const clickUrl = url ? decodeURIComponent(url) : null;
+        const existingClick = await prisma.emailEvent.findFirst({
+          where: {
+            recipientId,
+            campaignId,
+            eventType: "CLICKED",
+            ...(clickUrl ? { metadata: { path: ["url"], equals: clickUrl } } : {}),
+          },
         });
-        await triggerFollowUpWorkflow(campaignId, recipientId, "clicked");
-        const recipient = await prisma.recipient.findUnique({ where: { id: recipientId } });
-        if (recipient) {
-          const campaign = await prisma.campaign.findUnique({ where: { id: campaignId }, select: { userId: true } });
-          if (campaign) {
-            triggerWorkflows(campaign.userId, "CAMPAIGN_CLICKED", recipient.email, { campaignId }).catch(() => {});
+        if (!existingClick) {
+          await prisma.emailEvent.create({
+            data: { eventType: "CLICKED", campaignId, recipientId, metadata: clickUrl ? { url: clickUrl } : undefined },
+          });
+          await triggerFollowUpWorkflow(campaignId, recipientId, "clicked");
+          const recipient = await prisma.recipient.findUnique({ where: { id: recipientId } });
+          if (recipient) {
+            const campaign = await prisma.campaign.findUnique({ where: { id: campaignId }, select: { userId: true } });
+            if (campaign) {
+              triggerWorkflows(campaign.userId, "CAMPAIGN_CLICKED", recipient.email, { campaignId }).catch(() => {});
+            }
           }
         }
       }

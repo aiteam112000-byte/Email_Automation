@@ -21,9 +21,14 @@ router.get("/", async (req, res) => {
       where: { email: record.email, campaignId: record.campaignId },
     });
     if (recipient) {
-      await prisma.emailEvent.create({
-        data: { eventType: "UNSUBSCRIBED", campaignId: record.campaignId, recipientId: recipient.id },
+      const existingUnsub = await prisma.emailEvent.findFirst({
+        where: { recipientId: recipient.id, campaignId: record.campaignId, eventType: "UNSUBSCRIBED" },
       });
+      if (!existingUnsub) {
+        await prisma.emailEvent.create({
+          data: { eventType: "UNSUBSCRIBED", campaignId: record.campaignId, recipientId: recipient.id },
+        });
+      }
     }
   }
 
