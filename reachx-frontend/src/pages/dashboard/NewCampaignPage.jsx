@@ -46,6 +46,10 @@ export default function NewCampaignPage() {
   const autoSaveTimer = useRef(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [previewModal, setPreviewModal] = useState(false);
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+  const [assets, setAssets] = useState([]);
+  const [pendingAsset, setPendingAsset] = useState(null); // { asset, linkUrl }
+  const contentTextareaRef = useRef(null);
 
   // Load existing draft when ?draft=id is in the URL
   useEffect(() => {
@@ -229,6 +233,39 @@ export default function NewCampaignPage() {
     setAiLoading(false);
   }
 
+  async function openAssetPicker() {
+    if (assets.length === 0) {
+      const res = await api.get("/api/pixels");
+      const data = await res.json();
+      setAssets(data);
+    }
+    setAssetPickerOpen(true);
+  }
+
+  function insertAsset(asset, linkUrl = "") {
+    const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+    let snippet;
+    if (asset.type === "pixel") {
+      const src = asset.trackUrl ?? `${BASE}/api/track?pid=${asset.id}&type=open`;
+      snippet = `<img src="${src}" width="1" height="1" style="display:none" alt="" />`;
+    } else {
+      const img = `<img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%;display:block" />`;
+      snippet = linkUrl.trim() ? `<a href="${linkUrl.trim()}">${img}</a>` : img;
+    }
+    const el = contentTextareaRef.current;
+    if (el) {
+      const start = el.selectionStart ?? content.length;
+      const end = el.selectionEnd ?? content.length;
+      const newContent = content.slice(0, start) + snippet + content.slice(end);
+      handleContentChange(newContent);
+      setTimeout(() => { el.focus(); el.setSelectionRange(start + snippet.length, start + snippet.length); }, 0);
+    } else {
+      handleContentChange(content + "\n" + snippet);
+    }
+    setAssetPickerOpen(false);
+    setPendingAsset(null);
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar />
@@ -323,9 +360,15 @@ export default function NewCampaignPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700">Email body</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-slate-700">Email body</label>
+                      <button type="button" onClick={openAssetPicker} className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 rounded-lg px-2.5 py-1.5 transition-all">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        Insert pixel / image
+                      </button>
+                    </div>
                     <p className="text-xs text-slate-400">HTML or plain text. Use {`{{name}}`}, {`{{email}}`}, {`{{company}}`} as placeholders.</p>
-                    <textarea placeholder={"<p>Hello {{name}},</p>\n<p>Here's your update...</p>"} value={content} onChange={(e) => handleContentChange(e.target.value)} rows={14} className={`${inputCls} font-mono resize-none`} />
+                    <textarea ref={contentTextareaRef} placeholder={"<p>Hello {{name}},</p>\n<p>Here's your update...</p>"} value={content} onChange={(e) => handleContentChange(e.target.value)} rows={14} className={`${inputCls} font-mono resize-none`} />
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
@@ -458,6 +501,104 @@ export default function NewCampaignPage() {
           )}
         </div>
       </main>
+
+      {/* Asset picker modal */}
+      {assetPickerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-md max-h-[80vh]">
+            {/* Step 2: image selected — ask for link URL */}
+            {pendingAsset ? (
+              <>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setPendingAsset(null)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                    </button>
+                    <p className="text-sm font-semibold text-slate-800">Add a link to this image</p>
+                  </div>
+                  <button onClick={() => { setAssetPickerOpen(false); setPendingAsset(null); }} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center gap-3 bg-slate-50 rounded-xl p-3">
+                    <img src={pendingAsset.asset.imageUrl} alt={pendingAsset.asset.name} className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0" onError={(e) => { e.target.style.display = "none"; }} />
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{pendingAsset.asset.name}</p>
+                      <p className="text-xs text-slate-400">Image asset</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium text-slate-700">Link URL <span className="text-slate-400 font-normal">(optional)</span></label>
+                    <p className="text-xs text-slate-400">When recipients click this image, they'll go to this URL. Leave blank for no link.</p>
+                    <input
+                      autoFocus
+                      type="url"
+                      placeholder="https://yourwebsite.com"
+                      value={pendingAsset.linkUrl}
+                      onChange={(e) => setPendingAsset({ ...pendingAsset, linkUrl: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === "Enter") insertAsset(pendingAsset.asset, pendingAsset.linkUrl); }}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => insertAsset(pendingAsset.asset, pendingAsset.linkUrl)}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-semibold transition-all">
+                      {pendingAsset.linkUrl.trim() ? "Insert image with link" : "Insert image"}
+                    </button>
+                    <button onClick={() => setPendingAsset(null)} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Back</button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Step 1: pick an asset */
+              <>
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+                  <p className="text-sm font-semibold text-slate-800">Insert Pixel / Image</p>
+                  <button onClick={() => setAssetPickerOpen(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {assets.length === 0 ? (
+                    <div className="text-center py-12 space-y-2">
+                      <p className="text-slate-500 text-sm">No pixels or images yet.</p>
+                      <a href="/dashboard/pixels" target="_blank" rel="noreferrer" className="text-indigo-600 text-sm hover:underline">Create one in Pixel Folder →</a>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {assets.map((asset) => (
+                        <button key={asset.id}
+                          onClick={() => {
+                            if (asset.type === "pixel") {
+                              insertAsset(asset); // pixels insert immediately, no link needed
+                            } else {
+                              setPendingAsset({ asset, linkUrl: "" }); // images go to step 2
+                            }
+                          }}
+                          className="w-full flex items-center gap-3 px-6 py-3.5 hover:bg-slate-50 transition-colors text-left">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${asset.type === "pixel" ? "bg-violet-100" : "bg-sky-100"}`}>
+                            {asset.type === "pixel" ? (
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                            ) : (
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-800 truncate">{asset.name}</p>
+                            <p className="text-xs text-slate-400">{asset.type === "pixel" ? "Tracking pixel — invisible, fires on open" : "Image — click to add a link"}</p>
+                          </div>
+                          <span className="text-xs text-indigo-600 shrink-0">{asset.type === "pixel" ? "Insert →" : "Next →"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Full-screen preview modal */}
       {previewModal && (
