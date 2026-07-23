@@ -45,6 +45,7 @@ export default function NewCampaignPage() {
   const [saveStatus, setSaveStatus] = useState(""); // "saving" | "saved" | ""
   const autoSaveTimer = useRef(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
+  const [previewModal, setPreviewModal] = useState(false);
 
   // Load existing draft when ?draft=id is in the URL
   useEffect(() => {
@@ -327,21 +328,34 @@ export default function NewCampaignPage() {
                     <textarea placeholder={"<p>Hello {{name}},</p>\n<p>Here's your update...</p>"} value={content} onChange={(e) => handleContentChange(e.target.value)} rows={14} className={`${inputCls} font-mono resize-none`} />
                   </div>
                   <div className="space-y-1.5">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">Preview</p>
-                      <p className="text-xs text-slate-400">John Doe · Acme Corp</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">Preview</p>
+                        <p className="text-xs text-slate-400">John Doe · Acme Corp</p>
+                      </div>
+                      {content.trim() && (
+                        <button onClick={() => setPreviewModal(true)} className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 border border-indigo-200 hover:border-indigo-400 rounded-lg px-2.5 py-1.5 transition-all">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                          Full preview
+                        </button>
+                      )}
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 h-[300px] overflow-auto">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden h-[300px]">
                       {content.trim() ? (
                         isHtmlContent(content) ? (
-                          <div className="text-slate-700 prose prose-sm prose-slate max-w-none" dangerouslySetInnerHTML={{ __html: replaceTemplatePlaceholders(content.replace(/\n/g, "<br/>"), { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" }) }} />
+                          <iframe
+                            srcDoc={replaceTemplatePlaceholders(content, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}
+                            sandbox="allow-same-origin"
+                            className="w-full h-full border-0 bg-white"
+                            title="Email preview"
+                          />
                         ) : (
-                          <pre className="text-slate-700 max-w-none whitespace-pre-wrap break-words">
+                          <pre className="text-slate-700 max-w-none whitespace-pre-wrap break-words p-4 text-sm">
                             {replaceTemplatePlaceholders(content, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}
                           </pre>
                         )
                       ) : (
-                        <p className="text-sm text-slate-400">Paste your email HTML or plain text here to preview it with example data.</p>
+                        <p className="text-sm text-slate-400 p-4">Paste your email HTML or plain text here to preview it with example data.</p>
                       )}
                     </div>
                     <div className="mt-3">
@@ -444,6 +458,43 @@ export default function NewCampaignPage() {
           )}
         </div>
       </main>
+
+      {/* Full-screen preview modal */}
+      {previewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6">
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-3xl h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Email Preview</p>
+                <p className="text-xs text-slate-400 mt-0.5">John Doe · john.doe@example.com · Acme Corp</p>
+              </div>
+              <button onClick={() => setPreviewModal(false)} className="text-slate-400 hover:text-slate-700 transition-colors p-1 rounded-lg hover:bg-slate-100">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="px-6 py-3 border-b border-slate-100 bg-slate-50 shrink-0">
+              <p className="text-xs text-slate-400">Subject</p>
+              <p className="text-sm font-medium text-slate-800 mt-0.5">{replaceTemplatePlaceholders(subject, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}</p>
+            </div>
+            <div className="flex-1 min-h-0">
+              {isHtmlContent(content) ? (
+                <iframe
+                  srcDoc={replaceTemplatePlaceholders(content, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}
+                  sandbox="allow-same-origin"
+                  className="w-full h-full border-0 bg-white rounded-b-2xl"
+                  title="Email preview full"
+                />
+              ) : (
+                <div className="overflow-auto h-full p-6">
+                  <pre className="text-slate-700 whitespace-pre-wrap break-words text-sm leading-relaxed">
+                    {replaceTemplatePlaceholders(content, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
