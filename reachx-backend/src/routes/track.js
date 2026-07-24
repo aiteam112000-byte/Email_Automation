@@ -46,14 +46,13 @@ router.get("/", async (req, res) => {
           });
         }
       } else if (eventType === "CLICKED") {
-        // Deduplicate: only count one click per recipient per URL per campaign
+        // Deduplicate: only count one click per recipient per campaign, regardless of how many links they click
         const clickUrl = url ? decodeURIComponent(url) : null;
         const existingClick = await prisma.emailEvent.findFirst({
           where: {
             recipientId,
             campaignId,
             eventType: "CLICKED",
-            ...(clickUrl ? { metadata: { path: ["url"], equals: clickUrl } } : {}),
           },
         });
         if (!existingClick) {
