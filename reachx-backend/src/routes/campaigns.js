@@ -269,6 +269,39 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/campaigns/:id/export
+router.get("/:id/export", requireAuth, async (req, res) => {
+  const campaign = await prisma.campaign.findFirst({
+    where: { id: req.params.id, userId: req.user.id },
+    include: { recipients: true, events: { orderBy: { createdAt: "desc" } } },
+  });
+  if (!campaign) return res.status(404).json({ error: "Not found" });
+
+  const rows = campaign.recipients.map((recipient) => {
+    const recipientEvents = (campaign.events ?? []).filter((event) => event.recipientId === recipient.id);
+    const eventTypes = new Set(recipientEvents.map((event) => event.eventType));
+    const lastStatus = ["UNSUBSCRIBED", "CLICKED", "OPENED", "SENT", "BOUNCED"].find((status) => eventTypes.has(status)) ?? (recipientEvents.length ? recipientEvents[0].eventType : "PENDING");
+
+    return [
+      recipient.email,
+      recipient.status ?? "PENDING",
+      eventTypes.has("SENT") ? "yes" : "no",
+      eventTypes.has("OPENED") ? "yes" : "no",
+      eventTypes.has("CLICKED") ? "yes" : "no",
+      eventTypes.has("BOUNCED") ? "yes" : "no",
+      eventTypes.has("UNSUBSCRIBED") ? "yes" : "no",
+      lastStatus,
+    ];
+  });
+
+  const header = ["email", "recipient_status", "sent", "opened", "clicked", "bounced", "unsubscribed", "last_status"];
+  const csv = [header.join(","), ...rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))].join("\n");
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${(campaign.name || "campaign").toLowerCase().replace(/[^a-z0-9]+/g, "-") || "campaign"}-report.csv"`);
+  res.send(csv);
+});
+
 // GET /api/campaigns/:id
 router.get("/:id", requireAuth, async (req, res) => {
   const campaign = await prisma.campaign.findFirst({

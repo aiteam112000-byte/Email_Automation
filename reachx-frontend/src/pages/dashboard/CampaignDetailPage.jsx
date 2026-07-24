@@ -99,6 +99,20 @@ export default function CampaignDetailPage() {
     await load();
   }
 
+  async function handleExportCampaignReport() {
+    const res = await api.raw(`/api/campaigns/${id}/export`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${(campaign?.name || "campaign").toLowerCase().replace(/[^a-z0-9]+/g, "-") || "campaign"}-report.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
   async function handleDelete() {
     if (!confirm("Delete this campaign? This cannot be undone.")) return;
     await api.delete(`/api/campaigns/${id}/delete`);
@@ -160,6 +174,7 @@ export default function CampaignDetailPage() {
                 Add Recipients
               </button>
               <button onClick={() => setShowEdit(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Edit</button>
+              <button onClick={handleExportCampaignReport} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-indigo-600 hover:text-indigo-700 border border-indigo-200 hover:bg-indigo-50 transition-all">Export CSV</button>
               <button onClick={handleDuplicate} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Duplicate</button>
               {campaign.status === "DRAFT" && (
                 <>

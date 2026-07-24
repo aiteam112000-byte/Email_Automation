@@ -75,6 +75,20 @@ export default function SegmentsPage() {
     loadSegments();
   }
 
+  async function handleExportSegment(segId, segName) {
+    const res = await api.raw(`/api/segments/${segId}/contacts/export`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${(segName || "segment").toLowerCase().replace(/[^a-z0-9]+/g, "-") || "segment"}-contacts.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }
+
   async function handleDelete(id) {
     await api.delete("/api/segments", { id });
     setSegments(segments.filter((s) => s.id !== id));
@@ -175,36 +189,52 @@ export default function SegmentsPage() {
                       ) : !segmentContacts[seg.id] || segmentContacts[seg.id].length === 0 ? (
                         <div className="px-6 py-6 text-center text-slate-400 text-sm">No contacts in this segment.</div>
                       ) : (
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="bg-slate-50 border-b border-slate-100">
-                              <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Email</th>
-                              <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Name</th>
-                              <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Company</th>
-                              <th className="px-6 py-2.5 w-10"></th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {segmentContacts[seg.id].map((c) => (
-                              <tr key={c.id} className="hover:bg-slate-50 group">
-                                <td className="px-6 py-3 font-mono text-xs text-slate-700">{c.email}</td>
-                                <td className="px-6 py-3 text-slate-600">{c.name || <span className="text-slate-300">—</span>}</td>
-                                <td className="px-6 py-3 text-slate-600">{c.company || <span className="text-slate-300">—</span>}</td>
-                                <td className="px-6 py-3 text-right">
-                                  {seg.filterType === "manual" && (
-                                    <button onClick={() => handleDeleteContact(seg.id, c.email)}
-                                      className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100">
-                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-                                    </button>
-                                  )}
-                                </td>
+                        <>
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-100">
+                                <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Email</th>
+                                <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Name</th>
+                                <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Company</th>
+                                <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-2.5 w-10"></th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {segmentContacts[seg.id].map((c) => (
+                                <tr key={c.id} className="hover:bg-slate-50 group">
+                                  <td className="px-6 py-3 font-mono text-xs text-slate-700">{c.email}</td>
+                                  <td className="px-6 py-3 text-slate-600">{c.name || <span className="text-slate-300">—</span>}</td>
+                                  <td className="px-6 py-3 text-slate-600">{c.company || <span className="text-slate-300">—</span>}</td>
+                                  <td className="px-6 py-3">
+                                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${c.status === "UNSUBSCRIBED" ? "bg-rose-50 text-rose-600" : c.status === "BOUNCED" ? "bg-amber-50 text-amber-600" : c.status === "SPAM" ? "bg-slate-100 text-slate-600" : "bg-emerald-50 text-emerald-600"}`}>
+                                      {c.status || "ACTIVE"}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-3 text-right">
+                                    {seg.filterType === "manual" && (
+                                      <button onClick={() => handleDeleteContact(seg.id, c.email)}
+                                        className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </>
                       )}
-                      <div className="px-6 py-2.5 border-t border-slate-100 bg-slate-50 text-xs text-slate-400">
-                        {segmentContacts[seg.id]?.length ?? 0} contact{segmentContacts[seg.id]?.length !== 1 ? "s" : ""}
+                      <div className="px-6 py-2.5 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                        <div className="flex items-center gap-2">
+                          <span>{segmentContacts[seg.id]?.length ?? 0} contact{segmentContacts[seg.id]?.length !== 1 ? "s" : ""}</span>
+                          {(segmentContacts[seg.id] ?? []).filter((c) => c.status === "UNSUBSCRIBED").length > 0 && (
+                            <span className="rounded-full bg-rose-50 px-2 py-0.5 font-semibold text-rose-600">{(segmentContacts[seg.id] ?? []).filter((c) => c.status === "UNSUBSCRIBED").length} unsubscribed</span>
+                          )}
+                        </div>
+                        <button onClick={() => handleExportSegment(seg.id, seg.name)} className="text-indigo-600 hover:text-indigo-700 font-semibold">
+                          Export CSV
+                        </button>
                       </div>
                     </div>
                   )}

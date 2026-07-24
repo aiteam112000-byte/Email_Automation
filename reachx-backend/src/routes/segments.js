@@ -13,6 +13,53 @@ function getManualContactCount(filterValue) {
   }
 }
 
+function getContactStatus(contact) {
+  if (contact.unsubscribed) return "UNSUBSCRIBED";
+  if (contact.spamAt) return "SPAM";
+  if (contact.bouncedAt) return "BOUNCED";
+  return "ACTIVE";
+}
+
+async function getSegmentContacts(segment, userId) {
+  let contacts = [];
+
+  if (segment.filterType === "manual") {
+    const emails = JSON.parse(segment.filterValue || "[]");
+    contacts = await prisma.contact.findMany({ where: { email: { in: emails }, userId } });
+  } else if (segment.filterType === "tag") {
+    contacts = await prisma.contact.findMany({
+      where: { userId, tags: { contains: segment.filterValue ?? "" } },
+    });
+  } else if (segment.filterType === "status") {
+    const where = { userId };
+    if (segment.filterValue === "unsubscribed") where.unsubscribed = true;
+    else if (segment.filterValue === "bounced") where.bouncedAt = { not: null };
+    contacts = await prisma.contact.findMany({ where });
+  } else if (segment.filterType === "date") {
+    const days = parseInt(segment.filterValue ?? "30");
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    contacts = await prisma.contact.findMany({ where: { userId, createdAt: { gte: since } } });
+  }
+
+  // Also consider UNSUBSCRIBED events recorded on campaign recipients —
+  // sometimes unsubscribe events are logged on EmailEvent before the Contact record
+  // is updated. Fetch recent unsubscribed recipient emails for this user and
+  // treat those contacts as unsubscribed as well.
+  const unsubEvents = await prisma.emailEvent.findMany({
+    where: { eventType: "UNSUBSCRIBED", campaign: { userId } },
+    include: { recipient: { select: { email: true } } },
+  });
+  const unsubEmails = new Set((unsubEvents || []).map((e) => (e.recipient?.email || "").toLowerCase()));
+
+  return contacts.map((contact) => {
+    const computed = { ...contact };
+    if (!computed.unsubscribed && unsubEmails.has((computed.email || "").toLowerCase())) {
+      computed.unsubscribed = true;
+    }
+    return { ...computed, status: getContactStatus(computed) };
+  });
+}
+
 // GET /api/segments
 router.get("/", requireAuth, async (req, res) => {
   const segments = await prisma.segment.findMany({
@@ -118,27 +165,27 @@ router.get("/:id/contacts", requireAuth, async (req, res) => {
   const segment = await prisma.segment.findFirst({ where: { id: req.params.id, userId: req.user.id } });
   if (!segment) return res.status(404).json({ error: "Not found" });
 
-  let contacts = [];
-
-  if (segment.filterType === "manual") {
-    const emails = JSON.parse(segment.filterValue || "[]");
-    contacts = await prisma.contact.findMany({ where: { email: { in: emails }, userId: req.user.id } });
-  } else if (segment.filterType === "tag") {
-    contacts = await prisma.contact.findMany({
-      where: { userId: req.user.id, tags: { contains: segment.filterValue ?? "" } },
-    });
-  } else if (segment.filterType === "status") {
-    const where = { userId: req.user.id };
-    if (segment.filterValue === "unsubscribed") where.unsubscribed = true;
-    else if (segment.filterValue === "bounced") where.bouncedAt = { not: null };
-    contacts = await prisma.contact.findMany({ where });
-  } else if (segment.filterType === "date") {
-    const days = parseInt(segment.filterValue ?? "30");
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    contacts = await prisma.contact.findMany({ where: { userId: req.user.id, createdAt: { gte: since } } });
-  }
-
+  const contacts = await getSegmentContacts(segment, req.user.id);
   res.json({ count: contacts.length, contacts });
+});
+
+// GET /api/segments/:id/contacts/export
+router.get("/:id/contacts/export", requireAuth, async (req, res) => {
+  const segment = await prisma.segment.findFirst({ where: { id: req.params.id, userId: req.user.id } });
+  if (!segment) return res.status(404).json({ error: "Not found" });
+
+  const contacts = await getSegmentContacts(segment, req.user.id);
+  const header = "email,name,company,status";
+  const rows = contacts.map((contact) =>
+    [contact.email, contact.name ?? "", contact.company ?? "", contact.status]
+      .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+      .join(",")
+  );
+  const csv = [header, ...rows].join("\n");
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${(segment.name || "segment").toLowerCase().replace(/[^a-z0-9]+/g, "-") || "segment"}-contacts.csv"`);
+  res.send(csv);
 });
 
 module.exports = router;
