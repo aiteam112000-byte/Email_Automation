@@ -15,8 +15,17 @@ export default function SegmentsPage() {
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [addEmailInput, setAddEmailInput] = useState("");
   const [addingContact, setAddingContact] = useState(false);
+  const [uploadContactCount, setUploadContactCount] = useState(0);
 
   useEffect(() => { loadSegments(); }, []);
+
+  useEffect(() => {
+    if (form.filterType !== "manual") {
+      setUploadContactCount(0);
+      return;
+    }
+    setUploadContactCount(parseContactsText(uploadText).length);
+  }, [uploadText, form.filterType]);
 
   async function loadSegments() {
     const res = await api.get("/api/segments");
@@ -124,7 +133,14 @@ export default function SegmentsPage() {
                             {seg.filterType === "manual" ? "Uploaded list" : seg.filterType}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400">Created {new Date(seg.createdAt).toLocaleDateString()}</p>
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                          <p>Created {new Date(seg.createdAt).toLocaleDateString()}</p>
+                          {seg.filterType === "manual" && (
+                            <span className="rounded-full bg-indigo-50 px-2 py-0.5 font-semibold text-indigo-600">
+                              {seg.contactCount ?? 0} contact{(seg.contactCount ?? 0) === 1 ? "" : "s"}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                         className={`shrink-0 text-slate-400 transition-transform ${expandedId === seg.id ? "rotate-180" : ""}`}>
@@ -230,6 +246,10 @@ export default function SegmentsPage() {
               <div className="space-y-3">
                 <input type="file" accept=".csv,.txt" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setUploadText(await file.text()); }} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700" />
                 <textarea placeholder="email,name,phone,company,tags&#10;john@example.com,John Doe,,,newsletter" value={uploadText} onChange={(e) => setUploadText(e.target.value)} rows={6} className={`${inputCls} font-mono resize-none`} />
+                <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  <span>{uploadContactCount} contact{uploadContactCount === 1 ? "" : "s"} ready to upload</span>
+                  <span className="font-semibold text-indigo-600">Preview</span>
+                </div>
               </div>
             )}
             <div className="flex gap-2 pt-1">

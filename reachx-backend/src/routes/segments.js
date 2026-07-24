@@ -4,13 +4,28 @@ const { requireAuth } = require("../middleware/auth");
 
 const router = express.Router();
 
+function getManualContactCount(filterValue) {
+  try {
+    const emails = JSON.parse(filterValue || "[]");
+    return Array.isArray(emails) ? emails.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 // GET /api/segments
 router.get("/", requireAuth, async (req, res) => {
   const segments = await prisma.segment.findMany({
     where: { userId: req.user.id },
     orderBy: { createdAt: "desc" },
   });
-  res.json(segments);
+
+  const segmentsWithCount = segments.map((segment) => ({
+    ...segment,
+    contactCount: segment.filterType === "manual" ? getManualContactCount(segment.filterValue) : 0,
+  }));
+
+  res.json(segmentsWithCount);
 });
 
 // POST /api/segments
