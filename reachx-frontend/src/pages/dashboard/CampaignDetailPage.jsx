@@ -44,6 +44,7 @@ export default function CampaignDetailPage() {
   const [scheduling, setScheduling] = useState(false);
   const [showPixelPicker, setShowPixelPicker] = useState(false);
   const [pixels, setPixels] = useState([]);
+  const [pendingAsset, setPendingAsset] = useState(null);
 
   async function load() {
     const res = await api.get(`/api/campaigns/${id}`);
@@ -63,12 +64,15 @@ export default function CampaignDetailPage() {
 
   function insertPixelSnippet(asset) {
     const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
-    const snippet = asset.type === "pixel"
-      ? `<img src="${BASE}/api/track?pid=${asset.id}&type=open" width="1" height="1" style="display:none" alt="" />`
-      : `<img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%" />`;
-    setEditForm((f) => ({ ...f, content: f.content + "\n" + snippet }));
-    setShowPixelPicker(false);
-    setShowEdit(true);
+    if (asset.type === "pixel") {
+      const snippet = `<img src="${BASE}/api/track?pid=${asset.id}&type=open" width="1" height="1" style="display:none" alt="" />`;
+      setEditForm((f) => ({ ...f, content: f.content + "\n" + snippet }));
+      setShowPixelPicker(false);
+      setShowEdit(true);
+    } else {
+      // open link prompt for images
+      setPendingAsset({ asset, linkUrl: "" });
+    }
   }
 
   async function handleSend() {
@@ -330,21 +334,50 @@ export default function CampaignDetailPage() {
             {pixels.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-8">No assets in your Pixel Folder yet. Add some from the Pixel Folder section.</p>
             ) : (
-              <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
-                {pixels.map((asset) => (
-                  <button
-                    key={asset.id}
-                    onClick={() => insertPixelSnippet(asset)}
-                    className="w-full flex items-center gap-3 px-3 py-3 hover:bg-slate-50 transition-colors text-left"
-                  >
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${asset.type === "pixel" ? "text-violet-600 bg-violet-50 border-violet-200" : "text-sky-600 bg-sky-50 border-sky-200"}`}>
-                      {asset.type === "pixel" ? "Pixel" : "Image"}
-                    </span>
-                    <span className="text-sm text-slate-700 font-medium flex-1">{asset.name}</span>
-                    <span className="text-xs text-indigo-500 font-medium shrink-0">Insert →</span>
-                  </button>
-                ))}
-              </div>
+              pendingAsset ? (
+                <div className="p-4">
+                  <div className="flex items-center gap-3 bg-slate-50 rounded-xl p-3">
+                    <img src={pendingAsset.asset.imageUrl} alt={pendingAsset.asset.name} className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0" onError={(e) => { e.target.style.display = "none"; }} />
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{pendingAsset.asset.name}</p>
+                      <p className="text-xs text-slate-400">Image asset</p>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="text-sm font-medium text-slate-700">Link URL <span className="text-slate-400 font-normal">(optional)</span></label>
+                    <input type="url" autoFocus placeholder="https://yourwebsite.com" value={pendingAsset.linkUrl} onChange={(e) => setPendingAsset({ ...pendingAsset, linkUrl: e.target.value })} className={inputCls} />
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <button onClick={() => {
+                      const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+                      const snippet = pendingAsset.linkUrl.trim()
+                        ? `<a href="${pendingAsset.linkUrl.trim()}"><img src="${pendingAsset.asset.imageUrl}" alt="${pendingAsset.asset.name}" style="max-width:100%" /></a>`
+                        : `<img src="${pendingAsset.asset.imageUrl}" alt="${pendingAsset.asset.name}" style="max-width:100%" />`;
+                      setEditForm((f) => ({ ...f, content: f.content + "\n" + snippet }));
+                      setPendingAsset(null);
+                      setShowPixelPicker(false);
+                      setShowEdit(true);
+                    }} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-semibold transition-all">{pendingAsset?.linkUrl?.trim() ? "Insert image with link" : "Insert image"}</button>
+                    <button onClick={() => setPendingAsset(null)} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Back</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-y-auto divide-y divide-slate-100 flex-1">
+                  {pixels.map((asset) => (
+                    <button
+                      key={asset.id}
+                      onClick={() => insertPixelSnippet(asset)}
+                      className="w-full flex items-center gap-3 px-3 py-3 hover:bg-slate-50 transition-colors text-left"
+                    >
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${asset.type === "pixel" ? "text-violet-600 bg-violet-50 border-violet-200" : "text-sky-600 bg-sky-50 border-sky-200"}`}>
+                        {asset.type === "pixel" ? "Pixel" : "Image"}
+                      </span>
+                      <span className="text-sm text-slate-700 font-medium flex-1">{asset.name}</span>
+                      <span className="text-xs text-indigo-500 font-medium shrink-0">Insert →</span>
+                    </button>
+                  ))}
+                </div>
+              )
             )}
           </div>
         </div>

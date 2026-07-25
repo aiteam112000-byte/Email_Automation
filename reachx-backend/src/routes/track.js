@@ -75,7 +75,48 @@ router.get("/", async (req, res) => {
   }
 
   if (type === "click" && url) {
-    return res.redirect(decodeURIComponent(url));
+    // Decode the provided url param and defensively unwrap nested tracking
+    // redirects (where the tracked 'url' itself contains another /api/track
+    // with its own url=...). Then ensure a scheme (default to https).
+    try {
+      let target = decodeURIComponent(url || "");
+
+      // Try to unwrap up to a few nested tracking layers.
+      for (let i = 0; i < 5; i++) {
+        try {
+          const parsed = new URL(target);
+          const nested = parsed.searchParams.get("url");
+          if (nested && /\/api\/track/i.test(parsed.pathname)) {
+            target = decodeURIComponent(nested);
+            continue;
+          }
+          break;
+        } catch (e) {
+          // target is not an absolute URL; check for inline /api/track?query-style strings
+          const apiIdx = target.indexOf("/api/track?");
+          if (apiIdx !== -1) {
+            const qs = target.slice(apiIdx + "/api/track?".length);
+            const params = new URLSearchParams(qs);
+            const nested = params.get("url");
+            if (nested) {
+              target = decodeURIComponent(nested);
+              continue;
+            }
+          }
+          break;
+        }
+      }
+
+      // Strip leading slashes and default to https if no scheme provided
+      target = target.replace(/^\s+|\s+$/g, "");
+      if (!/^https?:\/\//i.test(target) && target) {
+        target = `https://${target.replace(/^\/+/, "")}`;
+      }
+
+      return res.redirect(target);
+    } catch (e) {
+      return res.redirect("/");
+    }
   }
 
   const pixel = Buffer.from("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7", "base64");
