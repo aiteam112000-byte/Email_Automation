@@ -45,6 +45,11 @@ export default function CampaignDetailPage() {
   const [showPixelPicker, setShowPixelPicker] = useState(false);
   const [pixels, setPixels] = useState([]);
   const [pendingAsset, setPendingAsset] = useState(null);
+  const [addMode, setAddMode] = useState("manual"); // "manual" | "segment"
+  const [segments, setSegments] = useState([]);
+  const [selectedSegId, setSelectedSegId] = useState("");
+  const [segPreview, setSegPreview] = useState(null);
+  const [segPreviewLoading, setSegPreviewLoading] = useState(false);
 
   async function load() {
     const res = await api.get(`/api/campaigns/${id}`);
@@ -58,6 +63,31 @@ export default function CampaignDetailPage() {
     const res = await api.get("/api/pixels");
     const data = await res.json();
     setPixels(data);
+  }
+
+  async function loadSegments() {
+    if (segments.length > 0) return;
+    const res = await api.get("/api/segments");
+    setSegments(await res.json());
+  }
+
+  async function previewSeg(segId) {
+    if (!segId) { setSegPreview(null); return; }
+    setSegPreviewLoading(true);
+    const res = await api.get(`/api/segments/${segId}/contacts`);
+    const data = await res.json();
+    setSegPreview({ count: data.count, emails: data.contacts.map((c) => c.email) });
+    setSegPreviewLoading(false);
+  }
+
+  async function handleAddFromSegment() {
+    if (!segPreview?.emails?.length) return;
+    const res = await api.post(`/api/campaigns/${id}/recipients`, { emails: segPreview.emails });
+    const data = await res.json();
+    setAddResult(`Added ${data.added} new recipient${data.added !== 1 ? "s" : ""} from segment`);
+    setSelectedSegId("");
+    setSegPreview(null);
+    await load();
   }
 
   useEffect(() => { load(); }, [id]);
@@ -270,16 +300,66 @@ export default function CampaignDetailPage() {
           <div className="bg-white border border-slate-200 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-900">Add Recipients</h2>
-              <button onClick={() => { setShowAddRecipients(false); setAddResult(""); }} className="text-slate-400 hover:text-slate-700">✕</button>
+              <button onClick={() => { setShowAddRecipients(false); setAddResult(""); setSelectedSegId(""); setSegPreview(null); }} className="text-slate-400 hover:text-slate-700">✕</button>
             </div>
-            <p className="text-sm text-slate-500">One per line or comma-separated. Duplicates are skipped.</p>
-            <textarea placeholder={"john@example.com\njane@company.com"} rows={6} value={recipientInput} onChange={(e) => setRecipientInput(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 resize-none transition-all" />
-            {addResult && <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">{addResult}</div>}
-            <div className="flex gap-2">
-              <button onClick={handleAddRecipients} disabled={!recipientInput.trim()} className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold transition-all">Add Recipients</button>
-              <button onClick={() => { setShowAddRecipients(false); setAddResult(""); }} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Close</button>
+            <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+              {["manual", "segment"].map((m) => (
+                <button key={m} onClick={() => { setAddMode(m); if (m === "segment") loadSegments(); }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${addMode === m ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
+                  {m === "manual" ? "Manual" : "From Segment"}
+                </button>
+              ))}
             </div>
+
+            {addMode === "manual" ? (
+              <>
+                <p className="text-sm text-slate-500">One per line or comma-separated. Duplicates are skipped.</p>
+                <textarea placeholder={"john@example.com\njane@company.com"} rows={6} value={recipientInput} onChange={(e) => setRecipientInput(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 resize-none transition-all" />
+                {addResult && <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">{addResult}</div>}
+                <div className="flex gap-2">
+                  <button onClick={handleAddRecipients} disabled={!recipientInput.trim()} className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold transition-all">Add Recipients</button>
+                  <button onClick={() => { setShowAddRecipients(false); setAddResult(""); }} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Close</button>
+                </div>
+              </>
+            ) : (
+              <>
+                {segments.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-4">No segments yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {segments.map((seg) => (
+                      <button key={seg.id} onClick={() => {
+                        if (selectedSegId === seg.id) { setSelectedSegId(""); setSegPreview(null); }
+                        else { setSelectedSegId(seg.id); previewSeg(seg.id); }
+                      }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${selectedSegId === seg.id ? "border-indigo-300 bg-indigo-50" : "border-slate-200 hover:border-slate-300"}`}>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedSegId === seg.id ? "border-indigo-600" : "border-slate-300"}`}>
+                          {selectedSegId === seg.id && <div className="w-2 h-2 rounded-full bg-indigo-600" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-slate-800">{seg.name}</div>
+                          <div className="text-xs text-slate-400 capitalize">{seg.filterType === "manual" ? "Uploaded list" : seg.filterType}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {segPreviewLoading && <p className="text-xs text-slate-400">Loading contacts...</p>}
+                {segPreview && !segPreviewLoading && (
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+                    <p className="text-sm font-medium text-indigo-700">{segPreview.count} contact{segPreview.count !== 1 ? "s" : ""} in this segment</p>
+                  </div>
+                )}
+                {addResult && <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">{addResult}</div>}
+                <div className="flex gap-2">
+                  <button onClick={handleAddFromSegment} disabled={!segPreview?.emails?.length} className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold transition-all">
+                    Add {segPreview?.count ?? 0} Recipients
+                  </button>
+                  <button onClick={() => { setShowAddRecipients(false); setAddResult(""); setSelectedSegId(""); setSegPreview(null); }} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Close</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -652,7 +652,15 @@ export default function NewCampaignPage() {
                     <>
                       <div className="space-y-2">
                         {segments.map((seg) => (
-                          <button key={seg.id} onClick={() => { setSelectedSegmentId(seg.id); previewSegment(seg.id); }}
+                          <button key={seg.id} onClick={() => {
+                              if (selectedSegmentId === seg.id) {
+                                setSelectedSegmentId("");
+                                setSegmentPreview(null);
+                              } else {
+                                setSelectedSegmentId(seg.id);
+                                previewSegment(seg.id);
+                              }
+                            }}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${selectedSegmentId === seg.id ? "border-indigo-300 bg-indigo-50" : "border-slate-200 hover:border-slate-300"}`}>
                             <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedSegmentId === seg.id ? "border-indigo-600" : "border-slate-300"}`}>
                               {selectedSegmentId === seg.id && <div className="w-2 h-2 rounded-full bg-indigo-600" />}
