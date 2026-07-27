@@ -45,17 +45,25 @@ export default function CampaignDetailPage() {
   const [showPixelPicker, setShowPixelPicker] = useState(false);
   const [pixels, setPixels] = useState([]);
   const [pendingAsset, setPendingAsset] = useState(null);
-  const [addMode, setAddMode] = useState("manual"); // "manual" | "segment"
+  const [addMode, setAddMode] = useState("manual");
   const [segments, setSegments] = useState([]);
   const [selectedSegId, setSelectedSegId] = useState("");
   const [segPreview, setSegPreview] = useState(null);
   const [segPreviewLoading, setSegPreviewLoading] = useState(false);
+  const [unsubscribedEmails, setUnsubscribedEmails] = useState(new Set());
 
   async function load() {
-    const res = await api.get(`/api/campaigns/${id}`);
-    const data = await res.json();
+    const [campRes, contactsRes] = await Promise.all([
+      api.get(`/api/campaigns/${id}`),
+      api.get("/api/contacts"),
+    ]);
+    const data = await campRes.json();
+    const contacts = await contactsRes.json();
     setCampaign(data);
     setEditForm({ name: data.name, subject: data.subject, content: data.content });
+    setUnsubscribedEmails(new Set(
+      contacts.filter((c) => c.unsubscribed).map((c) => c.email.toLowerCase())
+    ));
     setLoading(false);
   }
 
@@ -259,6 +267,9 @@ export default function CampaignDetailPage() {
                 const eventsForR = (campaign.events ?? []).filter((e) => e.recipientId === r.id);
                 const has = (type) => eventsForR.some((e) => e.eventType === type);
                 const skipReason = eventsForR.find((e) => e.eventType === "SKIPPED")?.metadata?.reason;
+                // For old campaigns without SKIPPED events, cross-check against current unsubscribed list
+                const isUnsubscribed = unsubscribedEmails.has(r.email.toLowerCase());
+                const showUnsubSkipped = !has("SENT") && !has("SKIPPED") && isUnsubscribed && campaign.status === "SENT";
                 return (
                   <div key={r.id} className="flex items-center justify-between px-6 py-3 hover:bg-slate-50 transition-colors">
                     <span className="font-mono text-sm text-slate-600 flex-1">{r.email}</span>
@@ -269,7 +280,8 @@ export default function CampaignDetailPage() {
                       {has("BOUNCED") && <span className="text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">Bounced</span>}
                       {has("UNSUBSCRIBED") && <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Unsubscribed</span>}
                       {has("SKIPPED") && <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">{skipReason === "unsubscribed" ? "Skipped · unsub" : skipReason === "invalid" ? "Skipped · invalid" : "Skipped"}</span>}
-                      {eventsForR.length === 0 && <span className="text-[11px] text-slate-300">Pending</span>}
+                      {showUnsubSkipped && <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Skipped · unsub</span>}
+                      {eventsForR.length === 0 && !showUnsubSkipped && <span className="text-[11px] text-slate-300">Pending</span>}
                       <button onClick={() => handleDeleteRecipient(r.id)} className="text-xs text-slate-400 hover:text-rose-500 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 px-2 py-1 rounded-lg transition-all font-medium ml-1">Remove</button>
                     </div>
                   </div>
