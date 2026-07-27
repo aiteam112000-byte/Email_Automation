@@ -316,19 +316,38 @@ export default function NewCampaignPage() {
     setAssetPickerOpen(true);
   }
 
-  function insertAsset(asset, linkUrl = "") {
+  const [snippetResult, setSnippetResult] = useState(null); // { snippet, copied }
+
+  function buildSnippet(asset, linkUrl = "") {
     const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
-    if (!editor) return;
     if (asset.type === "pixel") {
       const src = asset.trackUrl ?? `${BASE}/api/track?pid=${asset.id}&type=open`;
-      // Pixels are invisible — insert as raw HTML to avoid Tiptap schema stripping
+      return `<img src="${src}" width="1" height="1" style="display:none" alt="" />`;
+    }
+    const img = `<img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%" />`;
+    return linkUrl.trim()
+      ? `<a href="${linkUrl.trim()}" style="display:inline-block;border:0;text-decoration:none;">${img}</a>`
+      : img;
+  }
+
+  function insertAsset(asset, linkUrl = "") {
+    const snippet = buildSnippet(asset, linkUrl);
+
+    if (rawHtmlModeRef.current) {
+      // Raw HTML mode — show a copy box, don't touch the textarea
+      setSnippetResult({ snippet, copied: false });
+      setAssetPickerOpen(false);
+      setPendingAsset(null);
+      return;
+    }
+
+    if (!editor) return;
+    if (asset.type === "pixel") {
       const current = editor.getHTML();
-      const updated = current === "<p></p>" ? `<p></p><img src="${src}" width="1" height="1" style="display:none" alt="" />` : current + `<img src="${src}" width="1" height="1" style="display:none" alt="" />`;
+      const updated = current === "<p></p>" ? `<p></p>${snippet}` : current + snippet;
       editor.commands.setContent(updated, false);
     } else {
       if (linkUrl.trim()) {
-        // Tiptap strips <a> wrappers around <img> due to schema rules — inject as raw HTML
-        const snippet = `<a href="${linkUrl.trim()}" style="display:inline-block;border:0;text-decoration:none;"><img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%" /></a>`;
         const current = editor.getHTML();
         const updated = current === "<p></p>" ? snippet : current + snippet;
         editor.commands.setContent(updated, false);
@@ -338,7 +357,6 @@ export default function NewCampaignPage() {
     }
     setAssetPickerOpen(false);
     setPendingAsset(null);
-    // Sync content state so auto-save picks up the change
     const html = editor.getHTML();
     handleContentChange(html === "<p></p>" ? "" : html);
   }
@@ -702,6 +720,38 @@ export default function NewCampaignPage() {
                   Insert
                 </button>
                 <button onClick={() => setLinkModal(false)} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Snippet copy modal — shown in raw HTML mode after selecting an asset */}
+      {snippetResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <p className="text-sm font-semibold text-slate-800">Copy &amp; paste into your HTML</p>
+              <button onClick={() => setSnippetResult(null)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-500">Place this snippet anywhere in your HTML where you want the image or pixel to appear.</p>
+              <div className="relative">
+                <pre className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono text-slate-700 whitespace-pre-wrap break-all select-all">{snippetResult.snippet}</pre>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(snippetResult.snippet);
+                    setSnippetResult((s) => ({ ...s, copied: true }));
+                    setTimeout(() => setSnippetResult((s) => s ? ({ ...s, copied: false }) : null), 2000);
+                  }}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${snippetResult.copied ? "bg-emerald-600 text-white" : "bg-indigo-600 hover:bg-indigo-700 text-white"}`}>
+                  {snippetResult.copied ? "Copied!" : "Copy snippet"}
+                </button>
+                <button onClick={() => setSnippetResult(null)} className="px-4 py-2.5 rounded-xl text-sm text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Close</button>
               </div>
             </div>
           </div>
