@@ -28,6 +28,16 @@ function isHtmlContent(text) {
   return /<[^>]+>/.test(text);
 }
 
+// Make all links in preview open in a new tab for testing
+function preparePreviewHtml(html, data) {
+  const replaced = replaceTemplatePlaceholders(html, data);
+  // Inject target="_blank" rel="noopener" on every <a> that doesn't already have a target
+  return replaced.replace(/<a\s([^>]*)>/gi, (match, attrs) => {
+    if (/target=/i.test(attrs)) return match;
+    return `<a ${attrs} target="_blank" rel="noopener">`;
+  });
+}
+
 const STEPS = [{ n: 1, label: "Campaign Info" }, { n: 2, label: "Email Content" }, { n: 3, label: "Recipients" }];
 
 export default function NewCampaignPage() {
@@ -566,8 +576,8 @@ export default function NewCampaignPage() {
                       {content.trim() ? (
                         isHtmlContent(content) ? (
                           <iframe
-                            srcDoc={replaceTemplatePlaceholders(content, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}
-                            sandbox="allow-same-origin"
+                            srcDoc={preparePreviewHtml(content, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}
+                            sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
                             className="w-full h-full border-0 bg-white"
                             title="Email preview"
                           />
@@ -876,8 +886,8 @@ export default function NewCampaignPage() {
             <div className="flex-1 min-h-0">
               {isHtmlContent(content) ? (
                 <iframe
-                  srcDoc={replaceTemplatePlaceholders(content, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}
-                  sandbox="allow-same-origin"
+                  srcDoc={preparePreviewHtml(content, { name: "John Doe", email: "john.doe@example.com", company: "Acme Corp" })}
+                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
                   className="w-full h-full border-0 bg-white rounded-b-2xl"
                   title="Email preview full"
                 />
