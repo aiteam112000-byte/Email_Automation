@@ -5,13 +5,47 @@ const { triggerWorkflows } = require("../lib/triggerWorkflows");
 
 const router = express.Router();
 
+// ── Bot / scanner detection ──────────────────────────────────────────────────
+
+// User-agent patterns that indicate automated requests (not real humans)
+const BOT_UA_RE = /Googlebot-Image|GoogleImageProxy|Google-Safety|AdsBot-Google|bingbot|msnbot|Outlook-iOS|Outlook-Android|MailScanner|SpamAssassin|Barracuda|Proofpoint|Mimecast|IronPort|Sophos|Symantec|MessageLabs|AppRiver|Postmaster|mail\.ru|Mail\.RU_Bot|preview|prefetch|scan|crawler|spider|bot\b/i;
+
+// Known Google and Microsoft datacenter CIDR prefixes (expand as needed)
+// We convert them to prefix-match strings for simplicity (exact IP block checks
+// would require an IP library; string prefix matching covers the majority).
+const SCANNER_IP_PREFIXES = [
+  // Google
+  "66.249.", "64.233.", "72.14.", "74.125.", "209.85.", "216.58.", "216.239.", "108.177.", "142.250.", "172.217.",
+  // Microsoft / Outlook
+  "40.92.", "40.93.", "40.94.", "40.95.", "52.100.", "52.101.", "52.102.", "52.103.",
+];
+
+function isScannerIp(ip) {
+  if (!ip) return false;
+  // Handle IPv4-mapped IPv6 (::ffff:x.x.x.x)
+  const v4 = ip.replace(/^::ffff:/i, "");
+  return SCANNER_IP_PREFIXES.some((prefix) => v4.startsWith(prefix));
+}
+
+// Timing threshold: requests that arrive within this many ms of the campaign
+// being sent are almost certainly automated scanner prefetches, not human opens.
+const SCANNER_TIMING_MS = 8_000; // 8 seconds
+
+function isTooFast(campaign) {
+  if (!campaign) return false;
+  // Use updatedAt as a proxy for "sent at" (status flips to SENT on update)
+  const sentAt = campaign.updatedAt ?? campaign.createdAt;
+  return (Date.now() - new Date(sentAt).getTime()) < SCANNER_TIMING_MS;
+}
+
 // GET /api/track
 router.get("/", async (req, res) => {
   const { rid: recipientId, cid: campaignId, type, url, pid: pixelAssetId } = req.query;
 
-  // Only filter known Google bot/proxy user agents — not IPs (Gmail proxies real opens too)
   const ua = req.headers["user-agent"] ?? "";
-  const isBot = /Googlebot-Image|GoogleImageProxy|AdsBot-Google|bingbot|crawler|spider/i.test(ua);
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ?? req.socket.remoteAddress ?? "";
+
+  const isBot = BOT_UA_RE.test(ua) || isScannerIp(ip);
 
   if (!isBot && recipientId && campaignId) {
     try {
@@ -22,24 +56,32 @@ router.get("/", async (req, res) => {
           where: { recipientId, campaignId, eventType: "OPENED" },
         });
         if (!existing) {
-          await prisma.emailEvent.create({
-            data: {
-              eventType: "OPENED",
-              campaignId,
-              recipientId,
-              metadata: pixelAssetId ? { pixelAssetId } : undefined,
-            },
+          // Timing check: skip if request arrives suspiciously fast after send
+          const campaign = await prisma.campaign.findUnique({
+            where: { id: campaignId },
+            select: { updatedAt: true, createdAt: true, status: true },
           });
-          await triggerFollowUpWorkflow(campaignId, recipientId, "opened");
-          const recipient = await prisma.recipient.findUnique({ where: { id: recipientId } });
-          if (recipient) {
-            const campaign = await prisma.campaign.findUnique({ where: { id: campaignId }, select: { userId: true } });
-            if (campaign) {
-              triggerWorkflows(campaign.userId, "CAMPAIGN_OPENED", recipient.email, { campaignId }).catch(() => {});
+          if (isTooFast(campaign)) {
+            // Likely a scanner prefetch — serve the pixel but don't record the open
+          } else {
+            await prisma.emailEvent.create({
+              data: {
+                eventType: "OPENED",
+                campaignId,
+                recipientId,
+                metadata: pixelAssetId ? { pixelAssetId } : undefined,
+              },
+            });
+            await triggerFollowUpWorkflow(campaignId, recipientId, "opened");
+            const recipient = await prisma.recipient.findUnique({ where: { id: recipientId } });
+            if (recipient) {
+              const fullCampaign = await prisma.campaign.findUnique({ where: { id: campaignId }, select: { userId: true } });
+              if (fullCampaign) {
+                triggerWorkflows(fullCampaign.userId, "CAMPAIGN_OPENED", recipient.email, { campaignId }).catch(() => {});
+              }
             }
           }
         } else if (pixelAssetId && !existing.metadata?.pixelAssetId) {
-          // Update existing open event with pixel asset info if not already set
           await prisma.emailEvent.update({
             where: { id: existing.id },
             data: { metadata: { ...(existing.metadata ?? {}), pixelAssetId } },

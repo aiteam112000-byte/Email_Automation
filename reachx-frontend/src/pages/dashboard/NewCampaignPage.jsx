@@ -2,12 +2,18 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Sidebar from "../../components/Sidebar";
 import { api } from "../../lib/api";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, Extension } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TiptapLink from "@tiptap/extension-link";
 import TiptapImage from "@tiptap/extension-image";
 import Underline from "@tiptap/extension-underline";
 import Placeholder from "@tiptap/extension-placeholder";
+
+// Custom image node that can live inside an <a> tag (inline context)
+const InlineImage = TiptapImage.extend({
+  inline() { return true; },
+  group() { return "inline"; },
+});
 
 const inputCls = "w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 transition-all";
 
@@ -64,7 +70,7 @@ export default function NewCampaignPage() {
       StarterKit,
       Underline,
       TiptapLink.configure({ openOnClick: false, HTMLAttributes: { class: "text-indigo-600 underline" } }),
-      TiptapImage.configure({ HTMLAttributes: { style: "max-width:100%" } }),
+      InlineImage.configure({ HTMLAttributes: { style: "max-width:100%" } }),
       Placeholder.configure({ placeholder: "Write your email here…  Use {{name}}, {{email}}, {{company}} as placeholders." }),
     ],
     content: "",
@@ -276,16 +282,26 @@ export default function NewCampaignPage() {
     if (!editor) return;
     if (asset.type === "pixel") {
       const src = asset.trackUrl ?? `${BASE}/api/track?pid=${asset.id}&type=open`;
-      editor.commands.insertContent(`<img src="${src}" width="1" height="1" style="display:none" alt="" />`);
+      // Pixels are invisible — insert as raw HTML to avoid Tiptap schema stripping
+      const current = editor.getHTML();
+      const updated = current === "<p></p>" ? `<p></p><img src="${src}" width="1" height="1" style="display:none" alt="" />` : current + `<img src="${src}" width="1" height="1" style="display:none" alt="" />`;
+      editor.commands.setContent(updated, false);
     } else {
       if (linkUrl.trim()) {
-        editor.commands.insertContent(`<a href="${linkUrl.trim()}"><img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%" /></a>`);
+        // Tiptap strips <a> wrappers around <img> due to schema rules — inject as raw HTML
+        const snippet = `<a href="${linkUrl.trim()}" style="display:inline-block;border:0;text-decoration:none;"><img src="${asset.imageUrl}" alt="${asset.name}" style="max-width:100%" /></a>`;
+        const current = editor.getHTML();
+        const updated = current === "<p></p>" ? snippet : current + snippet;
+        editor.commands.setContent(updated, false);
       } else {
         editor.chain().focus().setImage({ src: asset.imageUrl, alt: asset.name }).run();
       }
     }
     setAssetPickerOpen(false);
     setPendingAsset(null);
+    // Sync content state so auto-save picks up the change
+    const html = editor.getHTML();
+    handleContentChange(html === "<p></p>" ? "" : html);
   }
 
   function openLinkModal() {
