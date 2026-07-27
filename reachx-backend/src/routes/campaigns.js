@@ -278,9 +278,12 @@ router.get("/:id/export", requireAuth, async (req, res) => {
   if (!campaign) return res.status(404).json({ error: "Not found" });
 
   const rows = campaign.recipients.map((recipient) => {
-    const recipientEvents = (campaign.events ?? []).filter((event) => event.recipientId === recipient.id);
-    const eventTypes = new Set(recipientEvents.map((event) => event.eventType));
-    const lastStatus = ["UNSUBSCRIBED", "CLICKED", "OPENED", "SENT", "BOUNCED"].find((status) => eventTypes.has(status)) ?? (recipientEvents.length ? recipientEvents[0].eventType : "PENDING");
+    const recipientEvents = (campaign.events ?? []).filter((e) => e.recipientId === recipient.id);
+    const eventTypes = new Set(recipientEvents.map((e) => e.eventType));
+
+    // Use the most recent event's type as the last status
+    const mostRecent = recipientEvents[0]; // already ordered desc
+    const lastStatus = mostRecent?.eventType ?? (recipient.status === "INVALID" ? "INVALID" : "PENDING");
 
     return [
       recipient.email,
@@ -290,11 +293,13 @@ router.get("/:id/export", requireAuth, async (req, res) => {
       eventTypes.has("CLICKED") ? "yes" : "no",
       eventTypes.has("BOUNCED") ? "yes" : "no",
       eventTypes.has("UNSUBSCRIBED") ? "yes" : "no",
+      recipient.status === "INVALID" ? "yes" : "no",
       lastStatus,
+      mostRecent ? new Date(mostRecent.createdAt).toISOString() : "",
     ];
   });
 
-  const header = ["email", "recipient_status", "sent", "opened", "clicked", "bounced", "unsubscribed", "last_status"];
+  const header = ["email", "recipient_status", "sent", "opened", "clicked", "bounced", "unsubscribed", "failed_invalid", "last_status", "last_event_at"];
   const csv = [header.join(","), ...rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))].join("\n");
 
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
