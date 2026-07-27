@@ -11,9 +11,10 @@ router.get("/", async (req, res) => {
   const record = await prisma.unsubscribeToken.findUnique({ where: { token } });
   if (!record) return res.status(404).json({ error: "Invalid token" });
 
-  await prisma.contact.updateMany({
-    where: { email: record.email, userId: record.userId },
-    data: { unsubscribed: true },
+  await prisma.contact.upsert({
+    where: { email_userId: { email: record.email, userId: record.userId } },
+    update: { unsubscribed: true },
+    create: { email: record.email, userId: record.userId, unsubscribed: true },
   });
 
   if (record.campaignId) {
