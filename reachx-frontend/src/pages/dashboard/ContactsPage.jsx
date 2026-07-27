@@ -258,7 +258,7 @@ export default function ContactsPage() {
                           : <span className="text-slate-400 text-xs">Direct</span>}
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        <button onClick={() => handleDelete(c.id)} className="text-xs text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100">Delete</button>
+                        <button onClick={() => handleDelete(c.id)} className="text-xs text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-200 hover:bg-rose-50 px-2 py-1 rounded-lg transition-all font-medium">Delete</button>
                       </td>
                     </tr>
                   ))}
