@@ -280,10 +280,9 @@ router.get("/:id/export", requireAuth, async (req, res) => {
   const rows = campaign.recipients.map((recipient) => {
     const recipientEvents = (campaign.events ?? []).filter((e) => e.recipientId === recipient.id);
     const eventTypes = new Set(recipientEvents.map((e) => e.eventType));
-
-    // Use the most recent event's type as the last status
-    const mostRecent = recipientEvents[0]; // already ordered desc
+    const mostRecent = recipientEvents[0];
     const lastStatus = mostRecent?.eventType ?? (recipient.status === "INVALID" ? "INVALID" : "PENDING");
+    const skipReason = recipientEvents.find((e) => e.eventType === "SKIPPED")?.metadata?.reason ?? "";
 
     return [
       recipient.email,
@@ -293,13 +292,14 @@ router.get("/:id/export", requireAuth, async (req, res) => {
       eventTypes.has("CLICKED") ? "yes" : "no",
       eventTypes.has("BOUNCED") ? "yes" : "no",
       eventTypes.has("UNSUBSCRIBED") ? "yes" : "no",
-      recipient.status === "INVALID" ? "yes" : "no",
+      eventTypes.has("SKIPPED") ? "yes" : "no",
+      skipReason,
       lastStatus,
       mostRecent ? new Date(mostRecent.createdAt).toISOString() : "",
     ];
   });
 
-  const header = ["email", "recipient_status", "sent", "opened", "clicked", "bounced", "unsubscribed", "failed_invalid", "last_status", "last_event_at"];
+  const header = ["email", "recipient_status", "sent", "opened", "clicked", "bounced", "unsubscribed", "skipped", "skip_reason", "last_status", "last_event_at"];
   const csv = [header.join(","), ...rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))].join("\n");
 
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -418,8 +418,19 @@ router.post("/:id/send", requireAuth, async (req, res) => {
   let zohoRRIndex = 0;
 
   for (const recipient of campaign.recipients) {
-    if (unsubscribedEmails.has(recipient.email.toLowerCase())) continue;
-    if (recipient.status === "INVALID") continue;
+    if (unsubscribedEmails.has(recipient.email.toLowerCase())) {
+      // Record as skipped so the UI can show it
+      await prisma.emailEvent.create({
+        data: { eventType: "SKIPPED", campaignId: campaign.id, recipientId: recipient.id, metadata: { reason: "unsubscribed" } },
+      }).catch(() => {});
+      continue;
+    }
+    if (recipient.status === "INVALID") {
+      await prisma.emailEvent.create({
+        data: { eventType: "SKIPPED", campaignId: campaign.id, recipientId: recipient.id, metadata: { reason: "invalid" } },
+      }).catch(() => {});
+      continue;
+    }
 
     try {
       const contact = contactByEmail.get(recipient.email.toLowerCase());

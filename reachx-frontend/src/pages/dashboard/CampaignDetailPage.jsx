@@ -180,6 +180,7 @@ export default function CampaignDetailPage() {
   const clicked = cnt(campaign.events, "CLICKED");
   const bounced = cnt(campaign.events, "BOUNCED");
   const unsubscribed = cnt(campaign.events, "UNSUBSCRIBED");
+  const skipped = cnt(campaign.events, "SKIPPED");
 
   const STATS = [
     { label: "Recipients", value: campaign.recipients?.length ?? 0, color: "text-indigo-600" },
@@ -187,7 +188,8 @@ export default function CampaignDetailPage() {
     { label: "Opened",     value: opened,  color: "text-violet-600",  sub: sent > 0 ? `${((opened / sent) * 100).toFixed(1)}% rate` : null },
     { label: "Clicked",    value: clicked, color: "text-emerald-600", sub: sent > 0 ? `${((clicked / sent) * 100).toFixed(1)}% rate` : null },
     { label: "Bounced",    value: bounced, color: "text-rose-500" },
-    { label: "Unsub",      value: unsubscribed, color: "text-slate-500" },
+    { label: "Unsub",      value: unsubscribed, color: "text-amber-500" },
+    { label: "Skipped",    value: skipped, color: "text-slate-400", sub: skipped > 0 ? "unsub/invalid" : null },
   ];
 
   return (
@@ -254,17 +256,21 @@ export default function CampaignDetailPage() {
               {(campaign.recipients ?? []).length === 0 ? (
                 <div className="px-6 py-10 text-center text-slate-400 text-sm">No recipients yet.</div>
               ) : (campaign.recipients ?? []).map((r) => {
-                const hasSent = (campaign.events ?? []).some((e) => e.recipientId === r.id && e.eventType === "SENT");
-                const hasOpened = (campaign.events ?? []).some((e) => e.recipientId === r.id && e.eventType === "OPENED");
-                const hasBounced = (campaign.events ?? []).some((e) => e.recipientId === r.id && e.eventType === "BOUNCED");
+                const eventsForR = (campaign.events ?? []).filter((e) => e.recipientId === r.id);
+                const has = (type) => eventsForR.some((e) => e.eventType === type);
+                const skipReason = eventsForR.find((e) => e.eventType === "SKIPPED")?.metadata?.reason;
                 return (
                   <div key={r.id} className="flex items-center justify-between px-6 py-3 hover:bg-slate-50 transition-colors">
                     <span className="font-mono text-sm text-slate-600 flex-1">{r.email}</span>
-                    <div className="flex items-center gap-3 shrink-0">
-                      {hasSent && <span className="text-[11px] font-semibold text-sky-600 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">Sent</span>}
-                      {hasOpened && <span className="text-[11px] font-semibold text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">Opened</span>}
-                      {hasBounced && <span className="text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">Bounced</span>}
-                      <button onClick={() => handleDeleteRecipient(r.id)} className="text-xs text-slate-400 hover:text-rose-500 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 px-2 py-1 rounded-lg transition-all font-medium">Remove</button>
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                      {has("SENT") && <span className="text-[11px] font-semibold text-sky-600 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">Sent</span>}
+                      {has("OPENED") && <span className="text-[11px] font-semibold text-violet-600 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">Opened</span>}
+                      {has("CLICKED") && <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">Clicked</span>}
+                      {has("BOUNCED") && <span className="text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">Bounced</span>}
+                      {has("UNSUBSCRIBED") && <span className="text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Unsubscribed</span>}
+                      {has("SKIPPED") && <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">{skipReason === "unsubscribed" ? "Skipped · unsub" : skipReason === "invalid" ? "Skipped · invalid" : "Skipped"}</span>}
+                      {eventsForR.length === 0 && <span className="text-[11px] text-slate-300">Pending</span>}
+                      <button onClick={() => handleDeleteRecipient(r.id)} className="text-xs text-slate-400 hover:text-rose-500 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 px-2 py-1 rounded-lg transition-all font-medium ml-1">Remove</button>
                     </div>
                   </div>
                 );
