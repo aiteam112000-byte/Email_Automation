@@ -52,7 +52,7 @@ async function runScheduledSend() {
         const unsubFooter = `<div style="margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
           Don't want these emails? <a href="${unsubLink}" style="color:#6366f1;">Unsubscribe</a>
         </div>`;
-        const trackingPixel = `<img src="${appUrl}/api/track?rid=${recipient.id}&cid=${campaign.id}&type=open" width="1" height="1" style="display:none" />`;
+        const trackingPixel = `<img src="${process.env.TRACKING_URL || appUrl}/api/track?rid=${recipient.id}&cid=${campaign.id}&type=open" width="1" height="1" style="display:none" />`;
 
         await sendEmail({
           to: recipient.email,
@@ -73,7 +73,7 @@ async function runScheduledSend() {
       }
     }
 
-    await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "SENT" } });
+    await prisma.campaign.update({ where: { id: campaign.id }, data: { status: "SENT", sentAt: new Date() } });
     results.push({ campaignId: campaign.id, sent, skipped, errors });
   }
 

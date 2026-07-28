@@ -33,7 +33,7 @@ router.get("/", requireAuth, async (req, res) => {
   // Inject trackUrl for pixel type assets so frontend shows the correct public URL
   const enriched = assets.map((a) => ({
     ...a,
-    trackUrl: a.type === "pixel" ? `${appUrl}/api/track?pid=${a.id}&type=open` : null,
+    trackUrl: a.type === "pixel" ? `${process.env.TRACKING_URL || appUrl}/api/track?pid=${a.id}&type=open` : null,
   }));
   res.json(enriched);
 });

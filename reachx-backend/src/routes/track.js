@@ -33,8 +33,8 @@ const SCANNER_TIMING_MS = 8_000; // 8 seconds
 
 function isTooFast(campaign) {
   if (!campaign) return false;
-  // Use updatedAt as a proxy for "sent at" (status flips to SENT on update)
-  const sentAt = campaign.updatedAt ?? campaign.createdAt;
+  // Use sentAt if available, otherwise fall back to updatedAt
+  const sentAt = campaign.sentAt ?? campaign.updatedAt ?? campaign.createdAt;
   return (Date.now() - new Date(sentAt).getTime()) < SCANNER_TIMING_MS;
 }
 
@@ -59,7 +59,7 @@ router.get("/", async (req, res) => {
           // Timing check: skip if request arrives suspiciously fast after send
           const campaign = await prisma.campaign.findUnique({
             where: { id: campaignId },
-            select: { updatedAt: true, createdAt: true, status: true },
+            select: { updatedAt: true, createdAt: true, sentAt: true, status: true },
           });
           if (isTooFast(campaign)) {
             // Likely a scanner prefetch — serve the pixel but don't record the open

@@ -76,6 +76,7 @@ model Campaign {
   followUpWorkflowId String?
   followUpTrigger    String?
   scheduledAt        DateTime?
+  sentAt             DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 

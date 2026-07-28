@@ -1,5 +1,6 @@
 function buildTrackUrl(appUrl, recipientId, campaignId, url) {
-  return `${appUrl}/api/track?rid=${recipientId}&cid=${campaignId}&type=click&url=${encodeURIComponent(url)}`;
+  const trackingBase = process.env.TRACKING_URL || appUrl;
+  return `${trackingBase}/api/track?rid=${recipientId}&cid=${campaignId}&type=click&url=${encodeURIComponent(url)}`;
 }
 
 function shouldSkipTracking(url) {
@@ -37,7 +38,8 @@ function rewriteLinksForTracking(html, recipientId, campaignId, appUrl) {
     /src=["']([^"']*\/api\/track\?pid=([^&"']+)[^"']*)["']/gi,
     (match, url, pid) => {
       if (url.includes("rid=")) return match;
-      const newUrl = `${appUrl}/api/track?pid=${pid}&rid=${recipientId}&cid=${campaignId}&type=open`;
+      const trackingBase = process.env.TRACKING_URL || appUrl;
+      const newUrl = `${trackingBase}/api/track?pid=${pid}&rid=${recipientId}&cid=${campaignId}&type=open`;
       return `src="${newUrl}"`;
     }
   );
