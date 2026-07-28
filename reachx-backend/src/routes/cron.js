@@ -6,15 +6,10 @@ const { checkBounceMailbox } = require("../lib/bounce");
 
 const router = express.Router();
 
-// POST /api/cron/send-scheduled
-router.post("/send-scheduled", async (req, res) => {
-  const secret = req.headers["x-cron-secret"];
-  if (secret !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
+// Core logic — exported so the in-process scheduler can call it directly
+async function runScheduledSend() {
   const now = new Date();
-  const bounceCount = await checkBounceMailbox();
+  const bounceCount = await checkBounceMailbox().catch(() => 0);
 
   const dueCampaigns = await prisma.campaign.findMany({
     where: { status: "SCHEDULED", scheduledAt: { lte: now } },
@@ -40,8 +35,14 @@ router.post("/send-scheduled", async (req, res) => {
     let sent = 0, skipped = 0, errors = 0;
 
     for (const recipient of campaign.recipients) {
-      if (unsubscribedEmails.has(recipient.email.toLowerCase())) { skipped++; continue; }
-      if (recipient.status === "INVALID") { skipped++; continue; }
+      if (unsubscribedEmails.has(recipient.email.toLowerCase())) {
+        await prisma.emailEvent.create({ data: { eventType: "SKIPPED", campaignId: campaign.id, recipientId: recipient.id, metadata: { reason: "unsubscribed" } } }).catch(() => {});
+        skipped++; continue;
+      }
+      if (recipient.status === "INVALID") {
+        await prisma.emailEvent.create({ data: { eventType: "SKIPPED", campaignId: campaign.id, recipientId: recipient.id, metadata: { reason: "invalid" } } }).catch(() => {});
+        skipped++; continue;
+      }
 
       try {
         const unsub = await prisma.unsubscribeToken.create({
@@ -76,7 +77,23 @@ router.post("/send-scheduled", async (req, res) => {
     results.push({ campaignId: campaign.id, sent, skipped, errors });
   }
 
-  res.json({ processed: dueCampaigns.length, bounceCount, results });
+  return { processed: dueCampaigns.length, bounceCount, results };
+}
+
+// POST /api/cron/send-scheduled — kept for external cron triggers (AWS EventBridge, etc.)
+router.post("/send-scheduled", async (req, res) => {
+  const secret = req.headers["x-cron-secret"];
+  if (secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const result = await runScheduledSend();
+    res.json(result);
+  } catch (err) {
+    console.error("[cron] send-scheduled error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
 });
 
 module.exports = router;
+module.exports.runScheduledSend = runScheduledSend;

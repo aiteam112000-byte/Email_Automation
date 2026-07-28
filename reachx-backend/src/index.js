@@ -15,6 +15,7 @@ const trackRoutes = require("./routes/track");
 const unsubscribeRoutes = require("./routes/unsubscribe");
 const webhookRoutes = require("./routes/webhooks");
 const cronRoutes = require("./routes/cron");
+const { runScheduledSend } = require("./routes/cron");
 const pixelRoutes = require("./routes/pixels");
 const gmailRoutes = require("./routes/gmail");
 const zohoRoutes = require("./routes/zoho");
@@ -52,18 +53,13 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 // Scheduler
 function startScheduler() {
-  if (process.env.NODE_ENV !== "production" && process.env.ENABLE_SCHEDULER !== "true") return;
-  // Always use localhost for internal scheduler calls, not the public APP_URL
-  const appUrl = `http://localhost:${PORT}`;
-  const secret = process.env.CRON_SECRET ?? "";
-  console.log("[scheduler] Startingchecking for scheduled campaigns every 60s");
+  const enabled = process.env.NODE_ENV === "production" || process.env.ENABLE_SCHEDULER === "true";
+  if (!enabled) return;
+
+  console.log("[scheduler] Starting — checking for scheduled campaigns every 60s");
   setInterval(async () => {
     try {
-      const res = await fetch(`${appUrl}/api/cron/send-scheduled`, {
-        method: "POST",
-        headers: { "x-cron-secret": secret },
-      });
-      const data = await res.json();
+      const data = await runScheduledSend();
       if (data.processed > 0) console.log(`[scheduler] Processed ${data.processed} campaign(s)`);
     } catch (err) {
       console.error("[scheduler] Error:", err);
