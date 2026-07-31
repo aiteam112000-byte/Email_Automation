@@ -108,7 +108,7 @@ export default function CampaignsPage() {
             <>
             <div className="flex items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-2 flex-wrap">
-                {["ALL", "DRAFT", "SCHEDULED", "SENT", "FAILED"].map((s) => (
+                {["ALL", "DRAFT", /* "SCHEDULED", */ "SENT", "FAILED"].map((s) => (
                   <button key={s} onClick={() => setFilterStatus(s)} className={`px-3 py-1.5 rounded-full text-xs font-semibold ${filterStatus === s ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'} border ${filterStatus === s ? 'border-indigo-600' : 'border-slate-100'}`}>
                     {s === 'ALL' ? 'All' : s[0] + s.slice(1).toLowerCase()}
                   </button>
