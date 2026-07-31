@@ -222,16 +222,16 @@ export default function CampaignDetailPage() {
               <button onClick={handleDuplicate} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-800 border border-slate-200 hover:bg-slate-50 transition-all">Duplicate</button>
               {campaign.status === "DRAFT" && (
                 <>
-                  <button onClick={() => setShowSchedule(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-amber-600 border border-amber-200 hover:bg-amber-50 transition-all">Schedule</button>
+                  {/* <button onClick={() => setShowSchedule(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-amber-600 border border-amber-200 hover:bg-amber-50 transition-all">Schedule</button> */}
                   <button onClick={() => setShowConfirmSend(true)} disabled={sending || !campaign.recipients?.length}
                     className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all">
                     {sending ? "Sending..." : `Send to ${campaign.recipients?.length ?? 0}`}
                   </button>
                 </>
               )}
-              {campaign.status === "SCHEDULED" && (
+              {/* {campaign.status === "SCHEDULED" && (
                 <button onClick={handleCancelSchedule} className="text-sm text-rose-500 hover:text-rose-700 font-medium border border-rose-200 hover:bg-rose-50 px-4 py-2.5 rounded-xl transition-all">Cancel Schedule</button>
-              )}
+              )} */}
               {campaign.status !== "SENDING" && (
                 <button onClick={handleDelete} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-rose-500 border border-slate-200 hover:border-rose-200 hover:bg-rose-50 px-3 py-2 rounded-xl transition-all">Delete</button>
               )}
@@ -398,7 +398,7 @@ export default function CampaignDetailPage() {
         </div>
       )}
 
-      {/* Schedule modal */}
+      {/* Schedule modal — commented out until feature is re-enabled
       {showSchedule && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xl">
@@ -420,6 +420,7 @@ export default function CampaignDetailPage() {
           </div>
         </div>
       )}
+      */}
 
       {/* Pixel picker modal */}
       {showPixelPicker && (
