@@ -30,6 +30,13 @@ app.use(express.json({ limit: "10mb" }));
 // Serve uploaded images as static files
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
+// Ignore favicon requests
+app.get("/favicon.ico", (req, res) => res.status(204).end());
+
+// Serve frontend static files
+const FRONTEND_DIST = path.join(__dirname, "../../reachx-frontend/dist");
+app.use(express.static(FRONTEND_DIST));
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/campaigns", campaignRoutes);
@@ -50,6 +57,11 @@ app.use("/api/uploads", uploadRoutes);
 
 // Health check
 app.get("/health", (req, res) => res.json({ status: "ok" }));
+
+// Catch-all: serve React app for any non-API route
+app.get("*", (req, res) => {
+  res.sendFile(path.join(FRONTEND_DIST, "index.html"));
+});
 
 // Scheduler
 function startScheduler() {

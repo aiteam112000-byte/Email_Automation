@@ -1,5 +1,5 @@
 {
   "builder": "railpack",
-  "buildCommand": "cd reachx && npm run build",
-  "startCommand": "cd reachx && npm start"
+  "buildCommand": "cd reachx-frontend && npm install && npm run build && cd ../reachx-backend && npm install",
+  "startCommand": "cd reachx-backend && node src/index.js"
 }
